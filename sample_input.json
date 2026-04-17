@@ -1,0 +1,14 @@
+{
+  "title": "Auto-IDAES: Autonomous Generation of Converged Process Models via Visual-Language Extraction of Legacy Literature",
+  "abstract": "The development of high-fidelity chemical process models requires labor-intensive extraction of thermodynamic parameters from unstructured scientific literature. We introduce Auto-IDAES, an agentic framework utilizing large vision-language models (VLMs) to autonomously ingest PDF research papers, extract phase equilibrium and kinetic data, and generate converged process models. By coupling Qwen2.5-VL for visual parsing with a reasoning-focused LLM for thermodynamic constraint validation, our system compiles raw literature into executable Pyomo code. Evaluated on a dataset of 200 carbon capture flowsheets, Auto-IDAES reduced model formulation time by 98% while achieving a 94.2% convergence rate on the first simulation pass.",
+  "methodology": "The pipeline consists of three agentic nodes. 1) Ingestion Node: Utilizes Qwen2.5-VL-72B-Instruct to parse multi-column PDFs, extracting text, equations, and data tables into structured JSON. 2) Validation Node: A 32B reasoning model verifies thermodynamic consistency (e.g., Gibbs free energy constraints). 3) Generation Node: Employs Jinja2 templating to map validated parameters into IDAES property blocks and unit models. The generated Python scripts are executed in an isolated environment with diagnostic-driven backtracking for error correction if the initial solver fails.",
+  "conclusions": "Auto-IDAES demonstrates that complex, equation-oriented process systems engineering can be fully automated. The ability to directly translate unstructured PDF literature into converged Pyomo models eliminates the primary bottleneck in digital twin development, paving the way for autonomous industrial design and rapid techno-economic scaling.",
+  "data_tables": "[{\"Table 1: Extraction Accuracy\": {\"Metric\": [\"Parameter Identification\", \"Unit Conversion\", \"Table Parsing\"], \"Human Expert\": [\"98.5%\", \"99.0%\", \"95.0%\"], \"Auto-IDAES\": [\"96.1%\", \"98.2%\", \"94.5%\"]}}, {\"Table 2: Convergence Metrics\": {\"Task\": [\"Time to Converged Model\", \"First-Pass Convergence Rate\"], \"Traditional Workflow\": [\"45.2 hours\", \"N/A\"], \"Auto-IDAES (Zero-Shot)\": [\"12.4 minutes\", \"68.5%\"], \"Auto-IDAES (w/ Backtracking)\": [\"28.1 minutes\", \"94.2%\"]}}]",
+  "domain_tags": [
+    "Process Systems Engineering",
+    "Agentic AI",
+    "Visual-Language Models",
+    "Chemical Modeling",
+    "Automated Workflows"
+  ]
+}
