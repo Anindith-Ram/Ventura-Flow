@@ -38,6 +38,7 @@ from dotenv import load_dotenv
 load_dotenv(PROJECT_DIR / ".env")
 
 from agents import bull_researcher, bear_researcher, bull_analyst, bear_analyst
+from agents.judge_agent import judge_agent
 from tools.search import batch_search
 from prompts import (
     BULL_RESEARCHER_SYSTEM_PROMPT, BEAR_RESEARCHER_SYSTEM_PROMPT,
@@ -197,6 +198,55 @@ def main():
         for fut in as_completed(futures):
             side, output, err = fut.result()
             results[side] = {"output": output, "error": err}
+
+    # ── STAGE C: Judge ────────────────────────────────────────────────────────
+    bull_output = results.get("bull", {}).get("output")
+    bear_output = results.get("bear", {}).get("output")
+
+    if bull_output and bear_output:
+        log("Running Judge Agent (2-pass evaluation + pitch deck)...")
+        # Build evidence list from search results stored on disk
+        bull_search_path = OUTPUT_DIR / f"{run_id}_bull_search_raw.json"
+        bear_search_path = OUTPUT_DIR / f"{run_id}_bear_search_raw.json"
+        evidence = []
+        for path, label in [(bull_search_path, "bull"), (bear_search_path, "bear")]:
+            if path.exists():
+                try:
+                    sr = json.loads(path.read_text())
+                    for query, hits in sr.items():
+                        for hit in hits[:2]:
+                            evidence.append({
+                                "question": query,
+                                "tool": f"DuckDuckGo ({label})",
+                                "result": f"{hit.get('title','')}: {hit.get('snippet','')}"
+                            })
+                except Exception:
+                    pass
+
+        state = {
+            "title": paper.get("title", ""),
+            "source_type": "research_paper",
+            "abstract": paper.get("abstract", ""),
+            "authors": paper.get("authors", []),
+            "institution": paper.get("institution", ""),
+            "bull_thesis": {"content": bull_output},
+            "bear_thesis": {"content": bear_output},
+            "evidence": evidence,
+            "correction_guidance": "",
+            "graph_context": "None available",
+        }
+
+        try:
+            result_state = judge_agent(state)
+            judge_eval = result_state.get("judge_evaluation", {})
+            pitch_deck = result_state.get("pitch_deck", {})
+            save_json(OUTPUT_DIR / f"{run_id}_judge_evaluation.json", judge_eval)
+            save_json(OUTPUT_DIR / f"{run_id}_pitch_deck.json", pitch_deck)
+            log(f"Judge complete — Score: {judge_eval.get('investability_score','?')}/100 "
+                f"| Rec: {judge_eval.get('recommendation','?')}")
+        except Exception:
+            err = traceback.format_exc()
+            log(f"Judge Agent FAILED:\n{err}")
 
     # ── Summary ───────────────────────────────────────────────────────────────
     for side, r in results.items():

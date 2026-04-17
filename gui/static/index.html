@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ventura Flow</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+:root {
+  --bg: #0a0c10;
+  --surface: #11141b;
+  --surface2: #181c26;
+  --surface3: #1e2230;
+  --border: #252a38;
+  --border2: #2e3548;
+  --text: #dde1ec;
+  --muted: #636b82;
+  --muted2: #8892a8;
+  --accent: #5b6af8;
+  --accent-dim: rgba(91,106,248,0.15);
+  --bull: #22d47a;
+  --bull-dim: rgba(34,212,122,0.12);
+  --bear: #f2445c;
+  --bear-dim: rgba(242,68,92,0.12);
+  --judge: #f5a623;
+  --judge-dim: rgba(245,166,35,0.12);
+  --success: #22d47a;
+  --warning: #f5a623;
+  --danger: #f2445c;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--text); font-size: 13px;
+  display: flex; flex-direction: column;
+}
+
+/* ── Header ── */
+.header {
+  display: flex; align-items: center; gap: 20px;
+  padding: 0 20px; height: 48px; min-height: 48px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.logo { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; color: var(--text); }
+.logo em { color: var(--accent); font-style: normal; }
+.header-status { font-size: 11px; color: var(--muted); }
+.header-spacer { flex: 1; }
+.pip-indicator {
+  display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted);
+}
+.pip-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--border2);
+  transition: background 0.3s;
+}
+.pip-dot.active { background: var(--success); animation: blink 1.2s infinite; }
+.pip-dot.done { background: var(--success); animation: none; }
+.pip-dot.error { background: var(--danger); animation: none; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+/* ── Layout ── */
+.layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  flex: 1; overflow: hidden;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface); border-right: 1px solid var(--border);
+}
+.sidebar-block {
+  padding: 14px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.sidebar-block h3 {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
+  color: var(--muted); margin-bottom: 10px; font-weight: 600;
+}
+.sidebar-history { flex: 1; overflow-y: auto; padding: 10px; }
+
+textarea, input[type=text], select {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; padding: 8px 10px;
+  font-family: 'Menlo', 'Monaco', monospace; font-size: 11px; line-height: 1.5;
+  outline: none; transition: border-color 0.15s;
+}
+textarea { resize: vertical; min-height: 140px; }
+textarea:focus, input[type=text]:focus, select:focus { border-color: var(--accent); }
+select { font-family: inherit; font-size: 12px; cursor: pointer; }
+
+.btn-row { display: flex; gap: 6px; margin-top: 8px; }
+.btn {
+  flex: 1; padding: 8px 12px; border: none; border-radius: 6px;
+  font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  letter-spacing: 0.2px;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { filter: brightness(1.15); }
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-ghost {
+  background: transparent; border: 1px solid var(--border); color: var(--muted2);
+}
+.btn-ghost:hover { border-color: var(--border2); color: var(--text); }
+
+.opt-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: var(--muted2); }
+.opt-row input[type=checkbox] { width: 14px; height: 14px; accent-color: var(--accent); }
+.opt-row label { cursor: pointer; }
+
+.run-item {
+  padding: 8px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 4px;
+  border: 1px solid transparent; transition: all 0.12s;
+}
+.run-item:hover { background: var(--surface2); border-color: var(--border); }
+.run-item.active { background: var(--surface2); border-color: var(--accent); }
+.run-title { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.run-meta { font-size: 10px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 5px; }
+.status-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.running { background: var(--warning); animation: blink 1.2s infinite; }
+.status-dot.complete { background: var(--success); }
+.status-dot.error { background: var(--danger); }
+
+/* ── Main ── */
+.main { display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Tabs ── */
+.tabs {
+  display: flex; background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 0 20px; flex-shrink: 0; overflow-x: auto;
+}
+.tabs::-webkit-scrollbar { height: 0; }
+.tab {
+  padding: 12px 14px; font-size: 12px; color: var(--muted2); cursor: pointer;
+  border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap;
+  display: flex; align-items: center; gap: 5px; user-select: none;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.badge {
+  background: var(--accent); color: #fff; border-radius: 8px;
+  font-size: 9px; padding: 1px 5px; font-weight: 700; display: none;
+}
+.badge.show { display: inline; }
+
+/* ── Tab Panels ── */
+.content { flex: 1; overflow: hidden; position: relative; }
+.panel {
+  display: none; position: absolute; inset: 0; overflow-y: auto;
+  padding: 20px;
+}
+.panel.active { display: flex; flex-direction: column; gap: 16px; }
+
+/* ── Pipeline Viz ── */
+.viz-wrap {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 20px 24px; flex-shrink: 0;
+}
+.viz-title {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+  margin-bottom: 16px;
+}
+.pipeline-flow {
+  display: flex; align-items: center; gap: 0;
+}
+.tracks {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.track { display: flex; align-items: center; gap: 0; }
+.snode {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  min-width: 120px;
+}
+.sbox {
+  padding: 7px 14px; border-radius: 8px; border: 1.5px solid var(--border2);
+  font-size: 11px; font-weight: 600; text-align: center;
+  background: var(--surface2); color: var(--muted2);
+  transition: all 0.3s; width: 100%;
+}
+.sbox.bull { border-color: var(--bull); color: var(--bull); background: var(--bull-dim); }
+.sbox.bear { border-color: var(--bear); color: var(--bear); background: var(--bear-dim); }
+.sbox.judge-c { border-color: var(--judge); color: var(--judge); background: var(--judge-dim); }
+.sbox.running { animation: snode-pulse 1.4s infinite; }
+.sbox.done { opacity: 0.6; }
+.sbox.error { border-color: var(--danger) !important; color: var(--danger) !important; }
+@keyframes snode-pulse {
+  0%,100% { box-shadow: 0 0 0 0 currentColor; }
+  50% { box-shadow: 0 0 10px 2px currentColor; }
+}
+.slabel { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.sarrow {
+  width: 36px; height: 1.5px; background: var(--border2); flex-shrink: 0;
+  position: relative;
+}
+.sarrow::after {
+  content: ''; position: absolute; right: -4px; top: -3.5px;
+  border: 4px solid transparent; border-left-color: var(--border2);
+}
+.sarrow.active { background: var(--accent); }
+.sarrow.active::after { border-left-color: var(--accent); }
+.merge-block {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 0 8px; gap: 0;
+}
+.merge-line { width: 1.5px; background: var(--border2); }
+.merge-horiz {
+  height: 1.5px; width: 28px; background: var(--border2); flex-shrink: 0;
+}
+.merge-horiz.active { background: var(--accent); }
+.merge-line.active { background: var(--accent); }
+
+/* ── Log Stream ── */
+.log-wrap {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  overflow: hidden; display: flex; flex-direction: column; flex: 1; min-height: 180px;
+}
+.log-header {
+  padding: 8px 14px; border-bottom: 1px solid var(--border);
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+.log-stream {
+  overflow-y: auto; padding: 10px 14px; flex: 1;
+  font-family: 'Menlo', 'Monaco', monospace; font-size: 11px; line-height: 1.8;
+}
+.log-line { display: flex; gap: 8px; }
+.lt { color: var(--muted); flex-shrink: 0; }
+.lm { word-break: break-word; }
+.lm.bull { color: var(--bull); }
+.lm.bear { color: var(--bear); }
+.lm.judge { color: var(--judge); }
+.lm.err { color: var(--danger); }
+
+/* ── Cards ── */
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  overflow: hidden;
+}
+.card-head {
+  padding: 12px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.card-title { font-weight: 600; font-size: 13px; }
+.card-body { padding: 18px; }
+
+/* ── Side-by-side ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+/* ── Markdown ── */
+.md { font-size: 12.5px; line-height: 1.8; color: var(--text); }
+.md h1 { font-size: 16px; margin: 0 0 10px; }
+.md h2 { font-size: 14px; color: var(--accent); margin: 14px 0 6px; }
+.md h3 { font-size: 13px; color: var(--muted2); margin: 10px 0 4px; }
+.md p { margin-bottom: 8px; }
+.md ul, .md ol { margin: 0 0 10px 18px; }
+.md li { margin-bottom: 3px; }
+.md strong { color: var(--text); font-weight: 600; }
+.md code { background: var(--surface2); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+.md blockquote {
+  border-left: 3px solid var(--border2); padding-left: 12px; color: var(--muted2); margin: 8px 0;
+}
+.md table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 12px; }
+.md th { background: var(--surface2); padding: 6px 10px; border: 1px solid var(--border); text-align: left; }
+.md td { padding: 5px 10px; border: 1px solid var(--border); }
+
+/* ── Pitch Deck ── */
+.pd-hero {
+  display: flex; align-items: center; gap: 20px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 20px 24px;
+}
+.pd-score-ring {
+  flex-shrink: 0; width: 80px; height: 80px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 3px solid var(--border2); font-weight: 800;
+}
+.pd-score-ring.high { border-color: var(--bull); color: var(--bull); }
+.pd-score-ring.medium { border-color: var(--judge); color: var(--judge); }
+.pd-score-ring.low { border-color: var(--bear); color: var(--bear); }
+.pd-score-num { font-size: 26px; line-height: 1; }
+.pd-score-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+.pd-hero-right { flex: 1; }
+.rec-banner {
+  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700;
+  letter-spacing: 1px; display: inline-block; margin-bottom: 8px;
+}
+.rec-banner.STRONG_FLAG { background: var(--bull-dim); color: var(--bull); border: 1px solid var(--bull); }
+.rec-banner.FLAG { background: var(--accent-dim); color: #8fa0ff; border: 1px solid var(--accent); }
+.rec-banner.WATCH_LIST { background: var(--judge-dim); color: var(--judge); border: 1px solid var(--judge); }
+.rec-banner.PASS { background: var(--bear-dim); color: var(--bear); border: 1px solid var(--bear); }
+.pd-verdict { font-size: 13px; font-style: italic; color: var(--muted2); line-height: 1.5; }
+.pd-rationale { font-size: 12px; color: var(--muted2); margin-top: 8px; line-height: 1.6; }
+
+.score-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+}
+.sc {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px; text-align: center;
+}
+.sc-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted); margin-bottom: 6px; }
+.sc-val { font-size: 22px; font-weight: 700; }
+.sc-val.high { color: var(--bull); }
+.sc-val.medium { color: var(--judge); }
+.sc-val.low { color: var(--bear); }
+.sc-note { font-size: 10px; color: var(--muted); margin-top: 5px; line-height: 1.4; text-align: left; }
+
+.pd-section { margin-bottom: 0; }
+.pd-section h4 {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+  margin-bottom: 7px; font-weight: 600;
+}
+.pd-section p { font-size: 12.5px; line-height: 1.75; color: var(--muted2); }
+.pd-section.bull p { color: #5edf9a; }
+.pd-section.bear p { color: #f07487; }
+
+.risk-item {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--surface2); border-radius: 8px; padding: 10px 12px; margin-bottom: 6px;
+}
+.sev {
+  font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+  white-space: nowrap; flex-shrink: 0; margin-top: 1px; letter-spacing: 0.5px;
+}
+.sev.HIGH { background: var(--bear-dim); color: var(--bear); }
+.sev.MEDIUM { background: var(--judge-dim); color: var(--judge); }
+.sev.LOW { background: var(--bull-dim); color: var(--bull); }
+.risk-text { font-size: 12px; color: var(--muted2); line-height: 1.5; }
+.risk-mit { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+.beliefs-list { list-style: none; }
+.beliefs-list li {
+  padding: 8px 12px; background: var(--surface2); border-radius: 8px;
+  margin-bottom: 6px; font-size: 12px; color: var(--muted2); line-height: 1.5;
+  border-left: 3px solid var(--accent);
+}
+.next-steps-list { list-style: none; }
+.next-steps-list li {
+  padding: 7px 12px; background: var(--surface2); border-radius: 8px;
+  margin-bottom: 5px; font-size: 12px; color: var(--muted2); line-height: 1.5;
+  display: flex; gap: 8px; align-items: flex-start;
+}
+.next-steps-list li::before { content: '→'; color: var(--accent); flex-shrink: 0; font-weight: 600; }
+
+.adj-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.adj-col h5 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; }
+.adj-item {
+  padding: 7px 10px; border-radius: 6px; font-size: 11px; color: var(--muted2);
+  line-height: 1.5; margin-bottom: 5px; border-left: 2px solid;
+}
+.adj-item.bull-item { background: var(--bull-dim); border-color: var(--bull); }
+.adj-item.bear-item { background: var(--bear-dim); border-color: var(--bear); }
+.adj-item.unresolved { background: var(--surface2); border-color: var(--border2); }
+
+.partner-rec {
+  padding: 14px 18px; border-radius: 10px; font-size: 13px; line-height: 1.6;
+  border: 1px solid var(--border2);
+}
+.partner-rec.take { background: var(--bull-dim); color: var(--bull); border-color: var(--bull); }
+.partner-rec.monitor { background: var(--judge-dim); color: var(--judge); border-color: var(--judge); }
+.partner-rec.pass { background: var(--bear-dim); color: var(--bear); border-color: var(--bear); }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ── Empty state ── */
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; color: var(--muted); text-align: center; gap: 6px; }
+.empty .ei { font-size: 32px; opacity: 0.35; }
+.empty .el { font-size: 13px; font-weight: 500; }
+.empty .eh { font-size: 11px; }
+</style>
+</head>
+<body>
+<!-- Header -->
+<header class="header">
+  <div class="logo"><em>Ventura</em> Flow</div>
+  <div class="pip-indicator">
+    <div class="pip-dot" id="pipDot"></div>
+    <span id="pipLabel">Idle</span>
+  </div>
+  <div class="header-spacer"></div>
+  <div class="header-status">Research Intelligence · Bull/Bear Pipeline · Judge Agent</div>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-block">
+      <h3>Paper Input</h3>
+      <textarea id="paperInput" placeholder='{"title": "...", "abstract": "..."}'></textarea>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="loadSample()">Load Sample</button>
+        <button class="btn btn-ghost" onclick="clearInput()">Clear</button>
+      </div>
+    </div>
+    <div class="sidebar-block">
+      <h3>Options</h3>
+      <div class="opt-row">
+        <input type="checkbox" id="noSearch">
+        <label for="noSearch">Skip web search (faster, no DDG)</label>
+      </div>
+      <select id="agentSel" style="margin-bottom:10px">
+        <option value="both">Both branches (Bull + Bear)</option>
+        <option value="bull">Bull branch only</option>
+        <option value="bear">Bear branch only</option>
+      </select>
+      <button class="btn btn-primary" id="runBtn" onclick="startRun()">▶ Run Full Pipeline</button>
+    </div>
+    <div class="sidebar-history">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:10px;font-weight:600;">Run History</div>
+      <div id="historyList">
+        <div class="empty" style="padding:16px 0"><div class="eh">No runs yet</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <nav class="tabs">
+      <div class="tab active" id="tab-pipeline" onclick="switchTab('pipeline')">Pipeline</div>
+      <div class="tab" id="tab-research" onclick="switchTab('research')">
+        Research <span class="badge" id="b-research">2</span>
+      </div>
+      <div class="tab" id="tab-analysis" onclick="switchTab('analysis')">
+        Analysis <span class="badge" id="b-analysis">2</span>
+      </div>
+      <div class="tab" id="tab-pitchdeck" onclick="switchTab('pitchdeck')">
+        Pitch Deck <span class="badge" id="b-pitchdeck">NEW</span>
+      </div>
+    </nav>
+
+    <div class="content">
+      <!-- ── Pipeline Panel ── -->
+      <div class="panel active" id="panel-pipeline">
+        <!-- Stage visualizer -->
+        <div class="viz-wrap">
+          <div class="viz-title">Pipeline Stages</div>
+          <div class="pipeline-flow" id="pipeViz">
+            <!-- Bull track -->
+            <div class="tracks">
+              <div class="track">
+                <div class="snode">
+                  <div class="sbox" id="sn-research-bull">Bull Researcher</div>
+                  <div class="slabel">qwen3:8b</div>
+                </div>
+                <div class="sarrow" id="ar-rb-ba"></div>
+                <div class="snode">
+                  <div class="sbox" id="sn-analysis-bull">Bull Analyst</div>
+                  <div class="slabel">deepseek-r1:14b</div>
+                </div>
+              </div>
+              <div class="track">
+                <div class="snode">
+                  <div class="sbox" id="sn-research-bear">Bear Researcher</div>
+                  <div class="slabel">qwen3:8b</div>
+                </div>
+                <div class="sarrow" id="ar-rr-ba"></div>
+                <div class="snode">
+                  <div class="sbox" id="sn-analysis-bear">Bear Analyst</div>
+                  <div class="slabel">deepseek-r1:14b</div>
+                </div>
+              </div>
+            </div>
+            <!-- Merge -->
+            <div class="merge-block">
+              <div class="merge-line" id="ml-top" style="height:32px"></div>
+              <div class="merge-horiz" id="mh"></div>
+              <div class="merge-line" id="ml-bot" style="height:32px"></div>
+            </div>
+            <!-- Judge + Pitch Deck -->
+            <div class="tracks" style="gap:0">
+              <div class="track" style="justify-content:center">
+                <div class="snode">
+                  <div class="sbox" id="sn-judge">Judge Agent</div>
+                  <div class="slabel">llama3.1:8b</div>
+                </div>
+                <div class="sarrow" id="ar-j-pd"></div>
+                <div class="snode">
+                  <div class="sbox" id="sn-pitchdeck">Pitch Deck</div>
+                  <div class="slabel">output</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Log stream -->
+        <div class="log-wrap">
+          <div class="log-header">
+            <div class="pip-dot" id="logDot"></div>
+            Live Logs
+            <div style="flex:1"></div>
+            <span style="cursor:pointer;font-size:10px;color:var(--muted)" onclick="clearLogs()">Clear</span>
+          </div>
+          <div class="log-stream" id="logStream">
+            <div class="log-line"><span class="lt">--:--:--</span><span class="lm" style="color:var(--muted)">Waiting for pipeline run...</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Research Panel ── -->
+      <div class="panel" id="panel-research">
+        <div class="two-col">
+          <div class="card">
+            <div class="card-head">
+              <span style="color:var(--bull);font-size:14px">▲</span>
+              <div class="card-title" style="color:var(--bull)">Bull Research Brief</div>
+            </div>
+            <div class="card-body">
+              <div class="md" id="bullBrief">
+                <div class="empty"><div class="ei">🔍</div><div class="eh">Run the pipeline to see the Bull research brief</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <span style="color:var(--bear);font-size:14px">▼</span>
+              <div class="card-title" style="color:var(--bear)">Bear Research Brief</div>
+            </div>
+            <div class="card-body">
+              <div class="md" id="bearBrief">
+                <div class="empty"><div class="ei">🔍</div><div class="eh">Run the pipeline to see the Bear research brief</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Analysis Panel ── -->
+      <div class="panel" id="panel-analysis">
+        <div class="two-col">
+          <div class="card">
+            <div class="card-head">
+              <span style="color:var(--bull);font-size:14px">▲</span>
+              <div class="card-title" style="color:var(--bull)">Bull Investment Thesis</div>
+            </div>
+            <div class="card-body">
+              <div class="md" id="bullThesis">
+                <div class="empty"><div class="ei">📈</div><div class="eh">Run the pipeline to see the Bull thesis</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <span style="color:var(--bear);font-size:14px">▼</span>
+              <div class="card-title" style="color:var(--bear)">Bear Critique</div>
+            </div>
+            <div class="card-body">
+              <div class="md" id="bearCritique">
+                <div class="empty"><div class="ei">📉</div><div class="eh">Run the pipeline to see the Bear critique</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Pitch Deck Panel ── -->
+      <div class="panel" id="panel-pitchdeck">
+        <div id="pitchDeckRoot">
+          <div class="empty" style="padding:80px 0">
+            <div class="ei">📋</div>
+            <div class="el">Pitch Deck Not Ready</div>
+            <div class="eh">Run the full pipeline (both branches) to generate the VC-grade investment memo</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentRunId = null;
+let es = null;
+const stageState = {};
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+// ── Badge helpers ─────────────────────────────────────────────────────────────
+function showBadge(name) {
+  document.getElementById('b-' + name).classList.add('show');
+}
+function hideBadge(name) {
+  document.getElementById('b-' + name).classList.remove('show');
+}
+
+// ── Load sample ───────────────────────────────────────────────────────────────
+async function loadSample() {
+  try {
+    const r = await fetch('/api/sample');
+    const data = await r.json();
+    document.getElementById('paperInput').value = JSON.stringify(data, null, 2);
+  } catch (e) {
+    alert('Could not load sample_input.json');
+  }
+}
+
+function clearInput() {
+  document.getElementById('paperInput').value = '';
+}
+
+// ── Logs ──────────────────────────────────────────────────────────────────────
+function addLog(msg, ts, side) {
+  const stream = document.getElementById('logStream');
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  const cls = side ? ` ${side}` : '';
+  div.innerHTML = `<span class="lt">${ts||'--:--:--'}</span><span class="lm${cls}">${escHtml(msg)}</span>`;
+  stream.appendChild(div);
+  stream.scrollTop = stream.scrollHeight;
+}
+
+function clearLogs() {
+  document.getElementById('logStream').innerHTML = '';
+}
+
+// ── Stage nodes ───────────────────────────────────────────────────────────────
+function setStage(stage, side, status) {
+  const key = `${stage}-${side}`;
+  stageState[key] = status;
+  const nodeId = `sn-${stage}-${side === 'both' ? 'judge' : side}`;
+  const el = document.getElementById(nodeId) || document.getElementById(`sn-${stage}`);
+  if (!el) return;
+  el.classList.remove('running', 'done', 'error', 'bull', 'bear', 'judge-c');
+  if (status === 'running') {
+    el.classList.add('running');
+    if (side === 'bull') el.classList.add('bull');
+    else if (side === 'bear') el.classList.add('bear');
+    else el.classList.add('judge-c');
+  } else if (status === 'complete') {
+    el.classList.add('done');
+    if (side === 'bull') el.classList.add('bull');
+    else if (side === 'bear') el.classList.add('bear');
+    else el.classList.add('judge-c');
+    // Light up next arrow
+    const arrowMap = {
+      'research-bull': 'ar-rb-ba', 'analysis-bull': null,
+      'research-bear': 'ar-rr-ba', 'analysis-bear': null,
+      'judge-both': 'ar-j-pd',
+    };
+    const arId = arrowMap[key];
+    if (arId) {
+      const ar = document.getElementById(arId);
+      if (ar) ar.classList.add('active');
+    }
+    // Light up merge lines when both analysts done
+    if (stage === 'analysis') {
+      const bullDone = stageState['analysis-bull'] === 'complete';
+      const bearDone = stageState['analysis-bear'] === 'complete';
+      if (bullDone) document.getElementById('ml-top')?.classList.add('active');
+      if (bearDone) document.getElementById('ml-bot')?.classList.add('active');
+      if (bullDone && bearDone) document.getElementById('mh')?.classList.add('active');
+    }
+  } else if (status === 'error') {
+    el.classList.add('error');
+  }
+}
+
+// ── Strip <think> tags (deepseek-r1, qwen3) ──────────────────────────────────
+function stripThink(text) {
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
+// ── Markdown render ───────────────────────────────────────────────────────────
+function renderMd(elId, text) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = marked.parse(stripThink(text));
+}
+
+// ── HTML escape ───────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Score class ───────────────────────────────────────────────────────────────
+function scoreClass(v) {
+  if (v >= 65) return 'high';
+  if (v >= 40) return 'medium';
+  return 'low';
+}
+
+// ── Pitch deck renderer ───────────────────────────────────────────────────────
+function renderPitchDeck(judgeEval, pitchDeck) {
+  if (!judgeEval) return;
+  const score = judgeEval.investability_score || 0;
+  const rec = judgeEval.recommendation || 'WATCH_LIST';
+  const sc = scoreClass(score);
+
+  const scores = [
+    { label: 'Commercial', val: judgeEval.commercial_viability, note: judgeEval.commercial_viability_rationale },
+    { label: 'Team Signal', val: judgeEval.team_signal_strength, note: judgeEval.team_signal_rationale },
+    { label: 'Timing', val: judgeEval.timing_and_market, note: judgeEval.timing_rationale },
+    { label: 'Moat', val: judgeEval.competitive_moat, note: judgeEval.moat_rationale },
+    { label: 'Conviction', val: judgeEval.risk_adjusted_conviction, note: judgeEval.risk_conviction_rationale },
+  ];
+
+  const adj = judgeEval.bull_vs_bear_adjudication || {};
+
+  let html = `
+  <div class="pd-hero">
+    <div class="pd-score-ring ${sc}">
+      <div class="pd-score-num">${score}</div>
+      <div class="pd-score-label">/ 100</div>
+    </div>
+    <div class="pd-hero-right">
+      <div class="rec-banner ${rec}">${rec.replace(/_/g,' ')}</div>
+      <div class="pd-verdict">"${escHtml(judgeEval.one_line_verdict || '')}"</div>
+      <div class="pd-rationale">${escHtml(judgeEval.investability_rationale || '')}</div>
+    </div>
+  </div>
+
+  <div class="score-grid">
+    ${scores.map(s => `
+    <div class="sc">
+      <div class="sc-label">${s.label}</div>
+      <div class="sc-val ${scoreClass(s.val||0)}">${s.val ?? '—'}</div>
+      <div class="sc-note">${escHtml((s.note||'').slice(0,120))}${(s.note||'').length>120?'…':''}</div>
+    </div>`).join('')}
+  </div>`;
+
+  if (pitchDeck && pitchDeck.memo_title) {
+    const pd = pitchDeck;
+    const partnerRec = (pd.partner_meeting_recommendation || '').toLowerCase();
+    const prClass = partnerRec.includes('take') ? 'take' : partnerRec.includes('monitor') ? 'monitor' : 'pass';
+
+    html += `
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">${escHtml(pd.memo_title || 'Investment Memo')}</div>
+      <div style="flex:1"></div>
+      <div style="font-size:11px;color:var(--muted)">${pd.memo_date || ''}</div>
+    </div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:18px">
+
+      ${memoSec('Executive Summary', pd.executive_summary)}
+      ${memoSec('The Opportunity', pd.the_opportunity)}
+      ${memoSec('Technology Differentiation', pd.technology_differentiation)}
+      ${memoSec('Team Assessment', pd.team_assessment)}
+      ${memoSec('Market Landscape', pd.market_landscape)}
+
+      <div class="two-col">
+        <div class="pd-section bull"><h4>Bull Case</h4><p>${escHtml(pd.bull_case_narrative||'')}</p></div>
+        <div class="pd-section bear"><h4>Bear Case</h4><p>${escHtml(pd.bear_case_narrative||'')}</p></div>
+      </div>
+
+      ${renderRisks(pd.key_risks_ranked)}
+      ${renderBeliefs(pd.what_we_need_to_believe)}
+      ${renderNextSteps(pd.suggested_next_steps)}
+      ${renderAdjudication(adj)}
+      ${memoSec('Comparable Transactions', pd.comparable_transactions)}
+
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;font-weight:600;">Partner Meeting Recommendation</div>
+        <div class="partner-rec ${prClass}">${escHtml(pd.partner_meeting_recommendation||'')}</div>
+      </div>
+    </div>
+  </div>`;
+  }
+
+  document.getElementById('pitchDeckRoot').innerHTML = html;
+}
+
+function memoSec(title, text) {
+  if (!text) return '';
+  return `<div class="pd-section"><h4>${title}</h4><p>${escHtml(text)}</p></div>`;
+}
+
+function renderRisks(risks) {
+  if (!risks || !risks.length) return '';
+  return `
+  <div>
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;font-weight:600;">Key Risks</div>
+    ${risks.map(r => `
+    <div class="risk-item">
+      <span class="sev ${r.severity||'MEDIUM'}">${r.severity||'?'}</span>
+      <div>
+        <div class="risk-text">${escHtml(r.risk||'')}</div>
+        ${r.mitigatable && r.mitigation_path ? `<div class="risk-mit">Mitigation: ${escHtml(r.mitigation_path)}</div>` : ''}
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function renderBeliefs(beliefs) {
+  if (!beliefs || !beliefs.length) return '';
+  return `
+  <div>
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;font-weight:600;">What We Need to Believe</div>
+    <ul class="beliefs-list">${beliefs.map(b => `<li>${escHtml(b)}</li>`).join('')}</ul>
+  </div>`;
+}
+
+function renderNextSteps(steps) {
+  if (!steps || !steps.length) return '';
+  return `
+  <div>
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;font-weight:600;">Suggested Next Steps</div>
+    <ul class="next-steps-list">${steps.map(s => `<li>${escHtml(s)}</li>`).join('')}</ul>
+  </div>`;
+}
+
+function renderAdjudication(adj) {
+  if (!adj || (!adj.bull_prevailed_on?.length && !adj.bear_prevailed_on?.length)) return '';
+  return `
+  <div>
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;font-weight:600;">Bull vs Bear Adjudication</div>
+    <div class="adj-grid">
+      <div class="adj-col">
+        <h5>Bull Prevailed On</h5>
+        ${(adj.bull_prevailed_on||[]).map(p=>`<div class="adj-item bull-item">${escHtml(p)}</div>`).join('')}
+      </div>
+      <div class="adj-col">
+        <h5>Bear Prevailed On</h5>
+        ${(adj.bear_prevailed_on||[]).map(p=>`<div class="adj-item bear-item">${escHtml(p)}</div>`).join('')}
+      </div>
+    </div>
+    ${(adj.unresolved_tensions||[]).length ? `
+    <div style="margin-top:10px">
+      <h5 style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;font-weight:600;">Unresolved Tensions</h5>
+      ${(adj.unresolved_tensions||[]).map(p=>`<div class="adj-item unresolved">${escHtml(p)}</div>`).join('')}
+    </div>` : ''}
+  </div>`;
+}
+
+// ── Pipeline header indicators ────────────────────────────────────────────────
+function setPipStatus(status) {
+  const dot = document.getElementById('pipDot');
+  const label = document.getElementById('pipLabel');
+  const logDot = document.getElementById('logDot');
+  dot.className = 'pip-dot ' + status;
+  logDot.className = 'pip-dot ' + status;
+  label.textContent = status === 'active' ? 'Running' : status === 'done' ? 'Complete' : status === 'error' ? 'Error' : 'Idle';
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+function refreshHistory() {
+  fetch('/api/runs').then(r=>r.json()).then(runs => {
+    const list = document.getElementById('historyList');
+    if (!runs.length) {
+      list.innerHTML = '<div class="empty" style="padding:16px 0"><div class="eh">No runs yet</div></div>';
+      return;
+    }
+    list.innerHTML = runs.map(r => `
+    <div class="run-item ${r.run_id === currentRunId ? 'active' : ''}" onclick="loadRun('${r.run_id}')">
+      <div class="run-title">${escHtml(r.title||'Untitled')}</div>
+      <div class="run-meta">
+        <div class="status-dot ${r.status}"></div>
+        ${r.status} · ${r.run_id}
+      </div>
+    </div>`).join('');
+  });
+}
+
+async function loadRun(runId) {
+  currentRunId = runId;
+  refreshHistory();
+  // Load saved outputs from disk
+  try {
+    const r = await fetch(`/api/outputs/${runId}`);
+    const data = await r.json();
+    if (data.bull_brief) { renderMd('bullBrief', data.bull_brief); showBadge('research'); }
+    if (data.bear_brief) { renderMd('bearBrief', data.bear_brief); showBadge('research'); }
+    if (data.bull_thesis) { renderMd('bullThesis', data.bull_thesis); showBadge('analysis'); }
+    if (data.bear_critique) { renderMd('bearCritique', data.bear_critique); showBadge('analysis'); }
+    if (data.judge_eval || data.pitch_deck) {
+      renderPitchDeck(data.judge_eval, data.pitch_deck);
+      showBadge('pitchdeck');
+    }
+  } catch(e) { console.warn('Could not load run outputs', e); }
+}
+
+// ── Start run ─────────────────────────────────────────────────────────────────
+async function startRun() {
+  const raw = document.getElementById('paperInput').value.trim();
+  if (!raw) { alert('Paste a paper JSON first (or click Load Sample)'); return; }
+  let paper;
+  try { paper = JSON.parse(raw); }
+  catch(e) { alert('Invalid JSON: ' + e.message); return; }
+
+  const noSearch = document.getElementById('noSearch').checked;
+  const agent = document.getElementById('agentSel').value;
+
+  // Reset UI
+  clearLogs();
+  ['research','analysis','pitchdeck'].forEach(hideBadge);
+  ['sn-research-bull','sn-research-bear','sn-analysis-bull','sn-analysis-bear','sn-judge','sn-pitchdeck']
+    .forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.className = 'sbox';
+    });
+  ['ar-rb-ba','ar-rr-ba','ar-j-pd','ml-top','ml-bot','mh'].forEach(id => {
+    document.getElementById(id)?.classList.remove('active');
+  });
+  Object.keys(stageState).forEach(k => delete stageState[k]);
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('runBtn').textContent = '⏳ Running...';
+  setPipStatus('active');
+  switchTab('pipeline');
+
+  let resp;
+  try {
+    resp = await fetch('/api/run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ paper, no_search: noSearch, agent })
+    });
+    const data = await resp.json();
+    currentRunId = data.run_id;
+  } catch(e) {
+    alert('Failed to start run: ' + e.message);
+    document.getElementById('runBtn').disabled = false;
+    document.getElementById('runBtn').textContent = '▶ Run Full Pipeline';
+    setPipStatus('');
+    return;
+  }
+
+  refreshHistory();
+
+  // SSE
+  if (es) es.close();
+  es = new EventSource(`/api/stream/${currentRunId}`);
+
+  es.onmessage = (e) => {
+    const evt = JSON.parse(e.data);
+    handleEvent(evt);
+  };
+  es.onerror = () => {
+    addLog('SSE connection error', null, 'err');
+    es.close();
+    finishRun(true);
+  };
+}
+
+function handleEvent(evt) {
+  switch (evt.type) {
+    case 'log':
+      addLog(evt.message, evt.ts, evt.side);
+      break;
+    case 'stage_start':
+      setStage(evt.stage, evt.side, 'running');
+      break;
+    case 'stage_complete':
+      setStage(evt.stage, evt.side, 'complete');
+      if (evt.stage === 'research') {
+        if (evt.side === 'bull') renderMd('bullBrief', evt.content || '');
+        if (evt.side === 'bear') renderMd('bearBrief', evt.content || '');
+        showBadge('research');
+      }
+      if (evt.stage === 'analysis') {
+        if (evt.side === 'bull') renderMd('bullThesis', evt.content || '');
+        if (evt.side === 'bear') renderMd('bearCritique', evt.content || '');
+        showBadge('analysis');
+      }
+      if (evt.stage === 'judge') {
+        // Light up pitch deck node
+        const pd = document.getElementById('sn-pitchdeck');
+        if (pd) { pd.classList.add('done', 'judge-c'); }
+        renderPitchDeck(evt.judge_eval, evt.pitch_deck);
+        showBadge('pitchdeck');
+        switchTab('pitchdeck');
+      }
+      break;
+    case 'stage_error':
+      setStage(evt.stage, evt.side, 'error');
+      addLog(`STAGE ERROR (${evt.stage}/${evt.side}): ${evt.message}`, null, 'err');
+      break;
+    case 'queries':
+      addLog(`[${evt.side.toUpperCase()} RESEARCHER] Generated queries: ${evt.queries.join(' | ')}`, null, evt.side);
+      break;
+    case 'complete':
+      finishRun(false);
+      refreshHistory();
+      break;
+    case 'error':
+      addLog('FATAL ERROR: ' + evt.message, null, 'err');
+      finishRun(true);
+      refreshHistory();
+      break;
+  }
+}
+
+function finishRun(isError) {
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('runBtn').textContent = '▶ Run Full Pipeline';
+  setPipStatus(isError ? 'error' : 'done');
+  if (es) { es.close(); es = null; }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+refreshHistory();
+// Auto-load sample on first visit
+fetch('/api/sample').then(r=>r.json()).then(data => {
+  if (!document.getElementById('paperInput').value.trim()) {
+    document.getElementById('paperInput').value = JSON.stringify(data, null, 2);
+  }
+}).catch(()=>{});
+</script>
+</body>
+</html>
