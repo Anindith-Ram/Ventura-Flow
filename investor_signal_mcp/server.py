@@ -131,9 +131,6 @@ def _paper_evidence_text(paper: Paper) -> str:
 
 
 def _evaluate_with_llm(paper: Paper) -> Optional[dict]:
-    if not settings.openai_api_key:
-        return None
-
     try:
         import httpx
 
@@ -151,13 +148,13 @@ def _evaluate_with_llm(paper: Paper) -> Optional[dict]:
             ],
         }
         base = settings.openai_base_url.rstrip("/")
+        headers = {"Content-Type": "application/json"}
+        if settings.openai_api_key:
+            headers["Authorization"] = f"Bearer {settings.openai_api_key}"
         with httpx.Client(timeout=45) as client:
             resp = client.post(
                 f"{base}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.openai_api_key}",
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
                 json=payload,
             )
             resp.raise_for_status()
@@ -203,9 +200,9 @@ def _evaluate_with_fallback_heuristics(paper: Paper) -> dict:
         "execution_risk": round(execution_risk, 4),
         "conceptual_penalty": round(conceptual_penalty, 4),
         "top_signals": [
-            "Fallback heuristic mode used (OPENAI_API_KEY missing/unavailable).",
+            "Fallback heuristic mode used (local LLM unavailable).",
             "Scores estimate novelty/buildability/evidence from paper text only.",
-            "Use LLM scoring for stricter diligence quality.",
+            "Run a local OpenAI-compatible OSS model for stricter diligence quality.",
         ],
         "caveats": [
             "Heuristic scoring is less reliable than LLM rubric checks.",
@@ -269,7 +266,7 @@ def score_investor_relevance(paper_id: str) -> str:
     ⚠️  NOT INVESTMENT ADVICE.
 
     Args:
-        paper_id: Semantic Scholar / OpenAlex paper ID.
+        paper_id: OpenAlex paper ID.
 
     Returns:
         JSON InvestorScore with total_score (0–1), feature breakdown, and signals.
@@ -353,7 +350,7 @@ def explain_score(paper_id: str) -> str:
     ⚠️  NOT INVESTMENT ADVICE.
 
     Args:
-        paper_id: Semantic Scholar / OpenAlex paper ID.
+        paper_id: OpenAlex paper ID.
 
     Returns:
         JSON with full feature scores, weight table, detected signals, and caveats.

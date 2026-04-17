@@ -17,7 +17,7 @@ class Author(BaseModel):
 class Paper(BaseModel):
     """Normalised paper record stored in SQLite + Qdrant."""
 
-    paper_id: str                                   # Semantic Scholar / internal ID
+    paper_id: str                                   # OpenAlex / internal ID
     doi: Optional[str] = None
     title: str
     abstract: Optional[str] = None
@@ -26,7 +26,7 @@ class Paper(BaseModel):
     venue: Optional[str] = None
     url: Optional[str] = None
     pdf_url: Optional[str] = None
-    source: str = "unknown"                         # "semantic_scholar" | "openalex"
+    source: str = "unknown"                         # "openalex"
     citation_count: int = 0
     is_open_access: bool = False
     fields_of_study: list[str] = Field(default_factory=list)

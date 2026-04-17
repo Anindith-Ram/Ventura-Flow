@@ -128,7 +128,7 @@ python agents/bull_analyst.py --paper sample_input.json --brief outputs/20240101
 
 This project has three MCP servers plus one orchestrator:
 
-- `papers_mcp`: ingest metadata from Semantic Scholar / OpenAlex
+- `papers_mcp`: ingest metadata from OpenAlex
 - `memory_mcp`: generate embeddings and semantic retrieval
 - `investor_signal_mcp`: LLM-based novelty/IP/value scoring
 - `orchestration/pipeline.py`: full run orchestration with threshold gates + OCR stage
@@ -150,7 +150,7 @@ It focuses on:
 papers_mcp              memory_mcp               investor_signal_mcp
     |                       |                            |
     v                       v                            v
-Semantic Scholar        Embeddings + Qdrant        LLM novelty/IP/value evaluator
+OpenAlex                Embeddings + Qdrant        LLM novelty/IP/value evaluator
 OpenAlex                semantic retrieval         + penalties for risk/conceptuality
     |                       |                            |
     +-----------------------+----------------------------+
@@ -176,7 +176,6 @@ shared/
 
 papers_mcp/
   server.py
-  semantic_scholar.py
   openalex.py
 
 memory_mcp/
@@ -302,6 +301,18 @@ uv run python -m orchestration.pipeline \
 uv run python scripts/test_pipeline.py --query "CRISPR delivery" --limit 20
 ```
 
+### Browse ingested metadata anytime
+
+```bash
+# default recent rows
+uv run python scripts/list_ingested.py
+
+# filter examples
+uv run python scripts/list_ingested.py --source openalex --year-from 2025 --limit 50
+uv run python scripts/list_ingested.py --only-open-access --with-abstract
+uv run python scripts/list_ingested.py --as-json
+```
+
 ---
 
 ## How Ranking Works
@@ -407,4 +418,4 @@ uv run python -m orchestration.pipeline \
 - **No OCR triggered**
   - Ensure papers have OA `pdf_url` and pass OCR threshold.
 - **Rate-limit errors from sources**
-  - Configure `S2_API_KEY` and use retries/backoff.
+  - Reduce `--limit` and retry later; OpenAlex retry/backoff is built in.

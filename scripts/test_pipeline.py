@@ -56,28 +56,17 @@ def main(query: str = SAMPLE_QUERY, limit: int = 20, ocr_threshold: float = 0.55
     # ── Step 1: Ingest metadata ───────────────────────────────────────────────
     _section(f"Step 1: Ingest metadata — query={query!r}, limit={limit}")
     t0 = time.time()
-    from papers_mcp.semantic_scholar import SemanticScholarClient
     from papers_mcp.openalex import OpenAlexClient
     from shared.db import upsert_papers
     from shared.models import Paper
 
     papers: list[Paper] = []
     try:
-        s2 = SemanticScholarClient()
-        papers = s2.search(query, limit=limit)
-        console.print(f"[green]Semantic Scholar:[/] {len(papers)} papers fetched")
+        oa = OpenAlexClient()
+        papers = oa.search(query, limit=limit)
+        console.print(f"[green]OpenAlex:[/] {len(papers)} papers fetched")
     except Exception as exc:
-        console.print(f"[yellow]S2 failed:[/] {exc} — trying OpenAlex")
-
-    if len(papers) < limit // 2:
-        try:
-            oa = OpenAlexClient()
-            extra = oa.search(query, limit=limit - len(papers))
-            seen = {p.paper_id for p in papers}
-            papers.extend(p for p in extra if p.paper_id not in seen)
-            console.print(f"[green]OpenAlex fallback:[/] added {len(extra)} more")
-        except Exception as exc:
-            console.print(f"[yellow]OpenAlex failed:[/] {exc}")
+        console.print(f"[yellow]OpenAlex failed:[/] {exc}")
 
     papers = papers[:limit]
     upsert_papers(papers)

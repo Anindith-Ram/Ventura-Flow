@@ -265,7 +265,7 @@ def get_paper_feature_vector(paper_id: str) -> str:
     """Retrieve metadata about the stored embedding for a paper.
 
     Args:
-        paper_id: Semantic Scholar / OpenAlex paper ID.
+        paper_id: OpenAlex paper ID.
 
     Returns:
         JSON with embedding dimension and first 16 values (preview).

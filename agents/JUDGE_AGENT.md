@@ -16,7 +16,7 @@ The agent receives:
 - The signal metadata (title, abstract, authors, institution, source type)
 - The Bull Agent's full thesis (arguments, confidence, comparables, best-case scenario)
 - The Bear Agent's full thesis (arguments, risks, what would change their mind)
-- All raw research evidence collected by the tool registry (Semantic Scholar lookups, patent searches, GitHub data, prior signal matches)
+- All raw research evidence collected by the tool registry (OpenAlex lookups, patent searches, GitHub data, prior signal matches)
 - Graph context from prior signals in the database
 
 It then produces six independently-reasoned scores, each with a written rationale:

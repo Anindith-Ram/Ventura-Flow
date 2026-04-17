@@ -173,7 +173,7 @@ The ranking engine in `investor_signal_mcp/server.py` is now LLM-centered.
 - Uses a strict rubric prompt for novelty/IP/value diligence.
 - Includes feasibility checks (can it be built?) and conceptuality checks.
 - Incorporates OCR text when available (`paper.ocr_text`) to enrich evidence.
-- Falls back to heuristic scoring only if LLM call is unavailable.
+- Falls back to heuristic scoring only if the local OSS LLM call is unavailable.
 
 ### Weighted score
 
@@ -224,8 +224,8 @@ Key vars in `.env`:
 
 ```env
 OPENAI_API_KEY=
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_SCORING_MODEL=gpt-4.1-mini
+OPENAI_BASE_URL=http://localhost:11434/v1
+OPENAI_SCORING_MODEL=llama3.1:8b-instruct-q4_K_M
 
 PAPER_PASS_THRESHOLD=0.65
 OCR_SCORE_THRESHOLD=0.6
@@ -270,7 +270,7 @@ If adding a new feature:
 
 ## 8) Failure Modes / Debugging
 
-- **LLM scoring unavailable**: check `OPENAI_API_KEY`, `OPENAI_BASE_URL`, model name.
+- **LLM scoring unavailable**: check local model server, `OPENAI_BASE_URL`, and model name.
 - **No accepted papers**: lower `PAPER_PASS_THRESHOLD`.
 - **No OCR triggered**: lower `OCR_SCORE_THRESHOLD` and verify OA PDF links.
 - **Vector store empty errors**: run embedding step before rank/search.
@@ -290,7 +290,6 @@ shared/
 
 papers_mcp/
   server.py          search + ingest tools
-  semantic_scholar.py
   openalex.py
 
 memory_mcp/

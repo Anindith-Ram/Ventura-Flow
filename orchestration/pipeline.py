@@ -2,7 +2,7 @@
 
 Steps
 -----
-1. Metadata ingestion   (Semantic Scholar / OpenAlex)
+1. Metadata ingestion   (OpenAlex)
 2. Embedding            (fastembed / OpenAI)
 3. Novelty ranking      (LLM novelty/IP/value scoring)
 4. OCR gating           (PDF download → paddleocr MCP → re-score)
@@ -66,7 +66,6 @@ def _step_ingest(
     year_to: Optional[int] = None,
 ) -> list[str]:
     """Fetch and store metadata; return list of paper_ids."""
-    from papers_mcp.semantic_scholar import SemanticScholarClient
     from papers_mcp.openalex import OpenAlexClient
     from shared.db import upsert_papers
 
@@ -79,26 +78,11 @@ def _step_ingest(
     )
     papers: list[Paper] = []
     try:
-        s2 = SemanticScholarClient()
-        papers = s2.search(query, limit=limit, year_from=year_from, year_to=year_to)
-        logger.info("Semantic Scholar: %d papers", len(papers))
+        oa = OpenAlexClient()
+        papers = oa.search(query, limit=limit, year_from=year_from, year_to=year_to)
+        logger.info("OpenAlex: %d papers", len(papers))
     except Exception as exc:
-        logger.warning("S2 failed: %s", exc)
-
-    if len(papers) < limit // 2:
-        try:
-            oa = OpenAlexClient()
-            extra = oa.search(
-                query,
-                limit=limit - len(papers),
-                year_from=year_from,
-                year_to=year_to,
-            )
-            seen = {p.paper_id for p in papers}
-            papers.extend(p for p in extra if p.paper_id not in seen)
-            logger.info("OpenAlex fallback added: %d papers", len(extra))
-        except Exception as exc:
-            logger.warning("OpenAlex fallback failed: %s", exc)
+        logger.warning("OpenAlex ingest failed: %s", exc)
 
     papers = papers[:limit]
     upserted = upsert_papers(papers)

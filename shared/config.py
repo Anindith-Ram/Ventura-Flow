@@ -16,7 +16,6 @@ class Settings:
     """All runtime configuration values."""
 
     # ── API keys ──────────────────────────────────────────────────────────────
-    s2_api_key: str
     openalex_email: str
 
     # ── Embeddings ───────────────────────────────────────────────────────────
@@ -46,16 +45,16 @@ class Settings:
     log_dir: str
 
     def __init__(self) -> None:
-        self.s2_api_key = os.getenv("S2_API_KEY", "")
         self.openalex_email = os.getenv("OPENALEX_EMAIL", "research-intelligence@example.com")
 
         self.embedding_backend = os.getenv("EMBEDDING_BACKEND", "fastembed")
         self.embedding_model = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
         self.embedding_dim = int(os.getenv("EMBEDDING_DIM", "384"))
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
-        self.openai_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-        self.openai_embedding_model = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
-        self.openai_scoring_model = os.getenv("OPENAI_SCORING_MODEL", "gpt-4.1-mini")
+        # OpenAI-compatible endpoint. Default points to local Ollama.
+        self.openai_base_url = os.getenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
+        self.openai_embedding_model = os.getenv("OPENAI_EMBEDDING_MODEL", "nomic-embed-text")
+        self.openai_scoring_model = os.getenv("OPENAI_SCORING_MODEL", "llama3.1:8b-instruct-q4_K_M")
 
         self.qdrant_url = os.getenv("QDRANT_URL", "")
         self.qdrant_api_key = os.getenv("QDRANT_API_KEY", "")
