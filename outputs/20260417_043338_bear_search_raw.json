@@ -1,0 +1,191 @@
+{
+  "Auto-IDAES competition": [
+    {
+      "title": "Indy Autonomous Challenge - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Indy_Autonomous_Challenge",
+      "snippet": "1 month ago - The first race took place in October 2021 on the Indianapolis Motor Speedway (IMS), after an initial three-year period of simulator-only challenges, which started in November 2019 as a proving ground to allow competing teams to develop and demonstrate the ability to race autonomously before receiving the physical race car. Since then, the competition has raced on several notable oval circuits such as Las Vegas Motor Speedway and Texas Motor Speedway, and in June 2023 in its first road course circuit, at the Monza Circuit."
+    },
+    {
+      "title": "Indy Autonomous Challenge",
+      "url": "https://www.indyautonomouschallenge.com/",
+      "snippet": "The Indy Autonomous Challenge gathers university teams from around the world compete in a series of challenges to advance technology that can speed the commercialization of fully autonomous vehicles and deployments of advanced driver-assistance ..."
+    },
+    {
+      "title": "Overview - Indy Autonomous Challenge",
+      "url": "https://www.indyautonomouschallenge.com/challenge-about",
+      "snippet": "A primary goal of the IAC is to advance technology that can speed the commercialization of fully autonomous vehicles and deployments of advanced driver-assistance systems (ADAS). These enhancements will lead to increased safety and performance in all modes of motorsports and commercial transportation. In addition, the competition is a platform for students to excel in STEM."
+    },
+    {
+      "title": "Autonomous Racing Leagues/Competitions",
+      "url": "https://www.diyrobocars.com/autonomous-racing-leaguescompetitions/",
+      "snippet": "Sparkfun Autonomous Vehicle Competition (Boulder CO)"
+    },
+    {
+      "title": "AutoDrive Challenge\u2122 II",
+      "url": "https://wa.wisc.edu/autodrive-challenge-ii/",
+      "snippet": "We just finished Year 3 of the four year competition. Year 1 focused on preparing, designing, and implementing software destined for testing on the physical car. The work done in Year 1 gave teams the foundation for Years 2-4. Year 2 had a focus on interface development on the Chevy Bolt EUV."
+    }
+  ],
+  "patents blocking Auto-IDAES": [
+    {
+      "title": "Blocking Patents: How They Work and How to Fight Back",
+      "url": "https://legalclarity.org/what-is-a-blocking-patent-and-how-does-it-work/",
+      "snippet": "Apr 7, 2026 \u00b7 Learn how blocking patents work, when they're used strategically, and what options you have when a competitor's patent stands in your way."
+    },
+    {
+      "title": "Blocking Patents: A Patent Cannot Block Itself - Finnegan",
+      "url": "https://www.finnegan.com/en/insights/blogs/prosecution-first/blocking-patents-a-patent-cannot-block-itself.html",
+      "snippet": "Jul 22, 2021 \u00b7 The Board determined Chemours evidence of commercial success was weak because it concluded that the existence of the patent covering its FEP 9494 product was a blocking patent that would have precluded others from freely entering the market."
+    },
+    {
+      "title": "Understanding Blocking Patents and Their Impact on Business",
+      "url": "https://patentlawyer.io/what-is-a-blocking-patent/",
+      "snippet": "Jul 22, 2025 \u00b7 Dive into the concept of blocking patents, how they limit the exploitation of device modifications, and how companies utilize them strategically."
+    },
+    {
+      "title": "Patents, Freedom to Operate, and Follow-on Innovation ...",
+      "url": "https://pubsonline.informs.org/doi/10.1287/mnsc.2019.02294",
+      "snippet": "May 8, 2024 \u00b7 Our study contributes to the literature in three ways. First, we present new evidence on the blocking effect of patents on follow-on innovation and provide a comprehensive theoretical framework for interpretation."
+    },
+    {
+      "title": "PATENT PROTECTION IN THE AUTOMOBILE INDUSTRY: AN ANALYSIS - IJCRT",
+      "url": "https://ijcrt.org/papers/IJCRT2401777.pdf",
+      "snippet": "Due to the rise in Standard Essential Patents litigation threats in the automobile industry over the past few years, automakers have implemented a variety of solutions, either as Standard Essential Patent holders or as implementers."
+    }
+  ],
+  "regulatory hurdles for chemical modeling": [
+    {
+      "title": "Removing Regulatory Hurdles for Continuous Pharmaceutical ...",
+      "url": "https://ispe.org/pharmaceutical-engineering/july-august-2023/removing-regulatory-hurdles-continuous-pharmaceutical",
+      "snippet": "1 day ago \u00b7 Continuous manufacturing (CM) challenged regulators\u2019 expectations and regulatory frameworks. This article discusses how US regulators addressed the regulatory hurdles related to CM to broaden its adoption through engagement, regulatory science, guidance, and international harmonization."
+    },
+    {
+      "title": "How modeling and simulation are reshaping regulatory science",
+      "url": "https://www.drugdiscoverynews.com/how-modeling-and-simulation-are-reshaping-regulatory-science-16617",
+      "snippet": "Sep 8, 2025 \u00b7 A recent FDA report by the Modeling and Simulation Working Group details tangible progress and case studies that highlight how MIDD approaches are already influencing regulatory decision making, from evaluating drug impurities to predicting toxicity and optimizing clinical trial design."
+    },
+    {
+      "title": "Current regulatory landscape of nanomaterials and ...",
+      "url": "https://www.sciencedirect.com/science/article/pii/S1773224722010292",
+      "snippet": "Feb 1, 2023 \u00b7 Although the research findings are encouraging, there are still several regulatory hurdles to overcome, particularly where medications are tailored to specific individuals or small groups of patients."
+    },
+    {
+      "title": "New approach methodologies (NAMs): identifying and overcoming ...",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10964841/",
+      "snippet": "New approach methodologies (NAMs) can deliver improved chemical safety assessment through the provision of more protective and/or relevant models that have a reduced reliance on animals."
+    },
+    {
+      "title": "Accelerating adoption of new approach methodologies in ...",
+      "url": "https://www.nature.com/articles/d41573-025-00038-6",
+      "snippet": "Mar 6, 2025 \u00b7 Clear and harmonized regulatory guidelines are needed to realize the potential of new approach methodologies for improving the predictivity of nonclinical drug candidate assessment."
+    }
+  ],
+  "chemical process model failures": [
+    {
+      "title": "Model-Based Fault Diagnosis and Fault Tolerant Control for ...A fault diagnosis method for complex chemical process based ...Failure Detection in Chemical Processes Using Symbolic ...Fault Diagnosis of Chemical Process System Based on 1DKACNN ...Chemical Process Fault Detection Using Deep LearningLessons Learned from Recent Process Safety IncidentsRobustness analysis of chemical process systems based on ...",
+      "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10862546/",
+      "snippet": "Aug 8, 2023 \u00b7 In the present work, these ideas will be formulated and illustrated through a continuous stirred-tank reactor case study involving the liquid-phase oxidation of alkylpyridine with hydrogen peroxide. Aug 1, 2022 \u00b7 Based on this, a fault diagnosis method for complex chemical process based on multi-model fusion is proposed. Mar 20, 2026 \u00b7 In this paper, we investigate an approach for predicting failures in chemical processes using symbolic machine learning and conduct a feasibility study in the context of an ethylene oxidation process. In this paper, we propose the 1DKACNN-BiGRU-ECA model for chemical process fault diagnosis by integrating KolmogorovArnold Networks (KAN) and one-dimensional Convolutional Neural Networks (CNN) for the first time. This example shows how to use simulation data to train a neural network that can detect faults in a chemical process. The network detects the faults in the simulated process with high accuracy. Mar 23, 2015 \u00b7 management system inadequacies, such as a failure to perform hazard analyses, failure to recognize and manage changes, or inadequate follow-up on previously experienced incident warning signs. Apr 28, 2022 \u00b7 To enhance the ability of chemical process systems to maintain normal operation after the cascading failure, this paper presents cascading failure modelling and robustness analysis of chemical process systems based on the complex network non-linear load capacity model."
+    },
+    {
+      "title": "A fault diagnosis method for complex chemical process based ...",
+      "url": "https://www.sciencedirect.com/science/article/pii/S0263876222003185",
+      "snippet": "Aug 1, 2022 \u00b7 Based on this, a fault diagnosis method for complex chemical process based on multi-model fusion is proposed."
+    },
+    {
+      "title": "Failure Detection in Chemical Processes Using Symbolic ...",
+      "url": "https://arxiv.org/html/2603.06767v3",
+      "snippet": "Mar 20, 2026 \u00b7 In this paper, we investigate an approach for predicting failures in chemical processes using symbolic machine learning and conduct a feasibility study in the context of an ethylene oxidation process."
+    },
+    {
+      "title": "Fault Diagnosis of Chemical Process System Based on 1DKACNN ...",
+      "url": "https://ieeexplore.ieee.org/document/10862199",
+      "snippet": "In this paper, we propose the 1DKACNN-BiGRU-ECA model for chemical process fault diagnosis by integrating KolmogorovArnold Networks (KAN) and one-dimensional Convolutional Neural Networks (CNN) for the first time."
+    },
+    {
+      "title": "Chemical Process Fault Detection Using Deep Learning",
+      "url": "https://www.mathworks.com/help/deeplearning/ug/chemical-process-fault-detection-using-deep-learning.html",
+      "snippet": "This example shows how to use simulation data to train a neural network that can detect faults in a chemical process. The network detects the faults in the simulated process with high accuracy."
+    }
+  ],
+  "replication of Auto-IDAES results": [
+    {
+      "title": "Meselson-Stahl Experiment: Semi-Conservative DNA Replication",
+      "url": "https://rbrlifescience.com/meselson-stahl-experiment-semi-conservative-dna-replication/",
+      "snippet": "Dispersive Replication: The parental DNA is fragmented, and the resulting segments are randomly interspersed with newly synthesized DNA along both strands of the daughter molecules. Matthew Meselson and Franklin Stahl, in 1958, designed an elegant and definitive experiment that proved the mechanism is Semi-conservative."
+    },
+    {
+      "title": "Genotype-by-inhibitor interactions to dissect enterovirus replication ...",
+      "url": "https://www.nature.com/articles/s41467-026-71900-3",
+      "snippet": "Our results reveal key insights into the function of nonstructural proteins in the context of viral replication."
+    },
+    {
+      "title": "Artificial replication cohort: Leveraging AI- fabricated data for ...",
+      "url": "https://onlinelibrary.wiley.com/doi/pdf/10.1111/liv.15890",
+      "snippet": "In the rigorous peer review process of genetic association studies, re-viewers underscore the necessity of validating findings in replication cohorts which aligns with STREGA recommendations.1 Replication highlights the role of confirming the validity of initial results, par-ticularly when establishing significant genotype-phenotype corre-lations.2 The general purpose of replication is to ..."
+    },
+    {
+      "title": "PDF Design and Analysis of Replication Studies with",
+      "url": "https://cran.r-project.org/web/packages/ReplicationSuccess/vignettes/ReplicationSuccess.pdf",
+      "snippet": "Although a replication study needs to be planned and conducted before the results can be analysed, we will first discuss the particular analysis approaches. We do this because the chosen analysis strategy has a substantial impact on the design of a replication study."
+    },
+    {
+      "title": "Rpd3L Coordinates Chromatin State and Transcription-Replication ...",
+      "url": "https://www.biorxiv.org/content/10.64898/2026.04.13.718173v1",
+      "snippet": "Faithful genome duplication requires coordination between transcription and replication. Disruption of this coordination causes transcription-replication conflicts (TRCs), leading to replication stress and genome instability. How chromatin regulators modulate these processes remains unclear. Here, we show that the Rpd3L histone deacetylase complex dynamically modulates chromatin state to ..."
+    }
+  ],
+  "contradicting evidence against Auto-IDAES approach": [
+    {
+      "title": "Evidence reversal\u2014when new evidence contradicts current claims: a ...",
+      "url": "https://www.sciencedirect.com/science/article/pii/S0895435616307429",
+      "snippet": "The first facet describes research about the phenomenon itself: research surrounding the event of new evidence contradicting what was previously found and believed about a given practice or theory."
+    },
+    {
+      "title": "How the court assesses witness credibility - conflicting evidence and ...",
+      "url": "https://www.bclplaw.com/en-US/events-insights-news/how-the-court-assesses-witness-credibility-conflicting-evidence-and-dishonesty.html",
+      "snippet": "The case is an explanation of how the court will approach such conflicting evidence, addressing shifting evidence, lack of evidence, disclosure shortcomings and the impact of the witness statement and litigation process on witnesses and memory. It is also a lesson in how the courts will assess witness credibility and draw adverse inferences."
+    },
+    {
+      "title": "Omissions and Contradictions: Assessing their Effect on the Evidence",
+      "url": "https://www.scconline.com/blog/post/2025/05/09/omissions-and-contradictions-assessing-their-effect-on-the-evidence/",
+      "snippet": "Judicial approach to identifying material contradictions The concept of contradiction in criminal jurisprudence cannot be rigidly defined, as its significance varies from case to case. The Court must determine whether a contradiction is trivial or material enough to undermine the reliability of a witness's testimony."
+    },
+    {
+      "title": "The Resilience of Scientific Theories Against Contradicting Evidence",
+      "url": "https://www.justwhy.org/science/the-resilience-of-scientific-theories-against-contradicting-evidence",
+      "snippet": "The resilience of certain scientific theories in the face of contradicting evidence can often be traced back to a mix of psychological and social mechanisms. Cognitive dissonance plays a significant role; when new information clashes with established beliefs, the discomfort can lead individuals to reject the new evidence rather than reconsider ..."
+    },
+    {
+      "title": "Comprehensive Cheat Sheet for Federal Rules of Evidence Objections",
+      "url": "https://abogadosgold.com/trial/federal-rules-of-evidence-objections-cheat-sheet/",
+      "snippet": "A federal rules of evidence objections cheat sheet provides a quick reference for attorneys to identify and articulate common objections, ensuring adherence to legal standards during trials and hearings."
+    }
+  ],
+  "Auto-IDAES scaling issues": [
+    {
+      "title": "Diagnosing Scaling Issues \u2014 IDAES v2.11.0",
+      "url": "https://idaes-pse.readthedocs.io/en/stable/explanations/scaling_toolbox/diagnosing_scaling_issues.html",
+      "snippet": "Diagnosing Scaling Issues # As mentioned in the previous section, the IDAES Diagnostics Toolbox contains a number of methods that can be used to help identify potential scaling issues. Scaling issues depend on the numerical state of the model, an thus the report_numerical_issues method is the place to start when looking for scaling issues. Some common signs of poor scaling which can be seen in ..."
+    },
+    {
+      "title": "How to Create Scaler Objects in IDAES \u2014 My Jupyter Book",
+      "url": "https://idaes-examples.readthedocs.io/en/stable/docs/scaling/scaler_workshop_doc.html",
+      "snippet": "Solving general non-linear problems has always been challenging, and is highly dependent on how well scaled the model is. In many cases, as much time (or more) is spent trying to improve the model formulation and scaling as was spent writing the original model. To assist molders with this task, IDAES has implemented a Scaling Toolbox which contains a number of useful tools for common scaling ..."
+    },
+    {
+      "title": "Scaling missing for some control volume terms \u00b7 Issue #175 - GitHub",
+      "url": "https://github.com/IDAES/idaes-pse/issues/175",
+      "snippet": "The control volume doesn't automatically scale the additional variables associated with has_mass_transfer and has_enthalpy_transfer. We probably should go through and double check all the options we provide to control volumes and also provide tests for them."
+    },
+    {
+      "title": "Scaling Toolbox \u2014 IDAES v2.3.0",
+      "url": "https://idaes-pse.readthedocs.io/en/2.3.0/reference_guides/scaling.html",
+      "snippet": "Importance of Model Scaling Creating well scaled models is important for increasing the efficiency and reliability of solvers. However, depending on units of measure and process scale, variables and constraints for process applications are often badly scaled unless efforts are taken to rescale the problem. The IDAES-IP takes the approach of writing the problem in the most natural form, and ..."
+    },
+    {
+      "title": "Scaling factor calculation order \u00b7 Issue #263 \u00b7 IDAES/idaes-pse",
+      "url": "https://github.com/IDAES/idaes-pse/issues/263",
+      "snippet": "Generally scaling factors are calculated in the tree structure of an IDAES model by going from the leaf blocks and calling the calculate scaling factors methods and proceeding to their parents and ..."
+    }
+  ]
+}
