@@ -30,6 +30,7 @@ class Paper(BaseModel):
     citation_count: int = 0
     is_open_access: bool = False
     fields_of_study: list[str] = Field(default_factory=list)
+    ocr_text: Optional[str] = None
     fetched_at: datetime = Field(default_factory=datetime.utcnow)
 
     @property
@@ -59,6 +60,7 @@ class Paper(BaseModel):
             "citation_count": self.citation_count,
             "is_open_access": int(self.is_open_access),
             "fields_of_study": "|".join(self.fields_of_study),
+            "ocr_text": self.ocr_text,
             "fetched_at": self.fetched_at.isoformat(),
         }
 
@@ -70,19 +72,14 @@ class IngestResult(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
-class SearchResult(BaseModel):
-    paper: Paper
-    score: float
-
-
 class FeatureScores(BaseModel):
-    recency: float = 0.0
-    citation_velocity: float = 0.0
-    domain_momentum: float = 0.0
-    translational_potential: float = 0.0
-    commercialization_hints: float = 0.0
-    open_access_bonus: float = 0.0
-    venue_prestige: float = 0.0
+    novelty: float = 0.0
+    investor_value: float = 0.0
+    buildability: float = 0.0
+    defensibility: float = 0.0
+    evidence_strength: float = 0.0
+    execution_risk: float = 0.0
+    conceptual_penalty: float = 0.0
 
 
 class InvestorScore(BaseModel):
@@ -109,6 +106,7 @@ class PipelineRun(BaseModel):
     run_id: str
     query: str
     total_papers_ingested: int
+    total_papers_passed_threshold: int = 0
     total_embedded: int
     top_investor_papers: list[InvestorScore]
     ocr_triggered_for: list[str]           # paper IDs that went through OCR

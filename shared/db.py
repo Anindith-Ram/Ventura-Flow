@@ -68,16 +68,6 @@ def init_db() -> None:
     logger.debug("Database initialised at %s", settings.db_path)
 
 
-def upsert_paper(paper: Paper) -> None:
-    """Insert or replace a paper record (idempotent)."""
-    row = paper.to_db_row()
-    cols = ", ".join(row.keys())
-    placeholders = ", ".join("?" for _ in row)
-    sql = f"INSERT OR REPLACE INTO papers ({cols}) VALUES ({placeholders})"
-    with _conn() as conn:
-        conn.execute(sql, list(row.values()))
-
-
 def upsert_papers(papers: list[Paper]) -> int:
     """Bulk upsert; returns count inserted/replaced."""
     if not papers:
@@ -114,15 +104,6 @@ def get_papers_by_ids(ids: list[str]) -> list[Paper]:
     with _conn() as conn:
         rows = conn.execute(
             f"SELECT * FROM papers WHERE paper_id IN ({placeholders})", ids
-        ).fetchall()
-    return [_row_to_paper(dict(r)) for r in rows]
-
-
-def list_papers(limit: int = 200, offset: int = 0) -> list[Paper]:
-    with _conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM papers ORDER BY year DESC LIMIT ? OFFSET ?",
-            (limit, offset),
         ).fetchall()
     return [_row_to_paper(dict(r)) for r in rows]
 
@@ -164,14 +145,6 @@ def update_investor_score(paper_id: str, score: float) -> None:
         )
 
 
-def paper_exists(paper_id: str) -> bool:
-    with _conn() as conn:
-        row = conn.execute(
-            "SELECT 1 FROM papers WHERE paper_id = ?", (paper_id,)
-        ).fetchone()
-    return row is not None
-
-
 def save_pipeline_run(run_id: str, query: str, started_at: str, metadata: dict) -> None:
     with _conn() as conn:
         conn.execute(
@@ -210,5 +183,6 @@ def _row_to_paper(row: dict) -> Paper:
         citation_count=row.get("citation_count", 0),
         is_open_access=bool(row.get("is_open_access", 0)),
         fields_of_study=fields,
+        ocr_text=row.get("ocr_text"),
         fetched_at=datetime.fromisoformat(row["fetched_at"]) if row.get("fetched_at") else datetime.utcnow(),
     )

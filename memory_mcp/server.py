@@ -43,12 +43,11 @@ mcp = FastMCP("memory", instructions=(
 from shared.db import (
     init_db,
     get_papers_by_ids,
-    list_papers,
     list_unembedded_papers,
     mark_embedded,
 )
 from shared.embeddings import embed_texts, embed_single
-from shared.models import ClusterResult, SearchResult
+from shared.models import ClusterResult
 from shared.vector_store import get_store
 
 init_db()

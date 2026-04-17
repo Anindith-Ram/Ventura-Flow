@@ -1,103 +1,65 @@
 # Agent & Developer Guide
 
-This guide explains how to call each MCP server, how tools chain together, and design decisions for future developers extending this pipeline.
+This guide documents the current MCP workflow, novelty/IP/value scoring behavior, threshold gating, and extension points for contributors.
 
 ---
 
-## 1. MCP Server Startup
+## 1) Server Startup
 
-All servers use **stdio transport** — they read JSON-RPC from stdin and write to stdout. OpenCode spawns them automatically when configured in `~/.config/opencode/opencode.json`.
-
-To start manually (useful for debugging):
+All servers run over stdio (JSON-RPC over stdin/stdout).
 
 ```bash
-# In separate terminals — each server is a long-running process
-uv run python -m papers_mcp.server      # port: none (stdio)
+uv run python -m papers_mcp.server
 uv run python -m memory_mcp.server
 uv run python -m investor_signal_mcp.server
 ```
 
-Logs go to `./logs/<server>.log` and stderr. Set `LOG_LEVEL=DEBUG` for verbose output.
+Logs are written to `./logs/*.log`.
 
 ---
 
-## 2. Recommended Tool Call Sequence
+## 2) Recommended Workflow
 
-```
-1. ingest_metadata(query, limit)            # [papers MCP]
-        │
-        ▼
-2. embed_and_store_papers([])               # [memory MCP] — empty list = all pending
-        │
-        ▼
-3a. semantic_search(query, top_k)          # [memory MCP] — find relevant papers
-3b. cluster_topics()                        # [memory MCP] — discover themes
-        │
-        ▼
-4. rank_papers_for_investor(query, top_k)  # [investor_signal MCP]
-        │
-        ▼
-5. explain_score(paper_id)                 # [investor_signal MCP] — deep dive
-        │
-        (optional — for high-scoring OA papers)
-        ▼
-6. paddleocr MCP tools on PDF images       # [paddleocr MCP]
+```text
+1) ingest_metadata(query, limit)                  [papers]
+2) embed_and_store_papers([])                     [memory]
+3) rank_papers_for_investor(query, top_k, pass_threshold?)   [investor_signal]
+4) explain_score(paper_id)                        [investor_signal]
+5) optional OCR stage via orchestration pipeline  [pipeline + paddleocr]
 ```
 
-Or run steps 1-5 in one call:
+One-command run:
+
 ```bash
 uv run python -m orchestration.pipeline --query "..." --limit 20
 ```
 
 ---
 
-## 3. Tool Inputs & Outputs
+## 3) Tool Contracts
 
 ### papers MCP
 
 #### `search_papers`
-```json
-// Input
-{ "query": "protein structure prediction", "limit": 20, "year_from": 2022 }
 
-// Output
-{
-  "count": 20,
-  "papers": [
-    {
-      "paper_id": "abc123",
-      "doi": "10.1234/...",
-      "title": "...",
-      "abstract": "First 300 chars...",
-      "authors": ["Author A", "Author B"],
-      "year": 2024,
-      "venue": "Nature",
-      "url": "https://...",
-      "pdf_url": "https://...",
-      "source": "semantic_scholar",
-      "citation_count": 142,
-      "is_open_access": true,
-      "fields_of_study": ["Computer Science", "Biology"]
-    }
-  ]
-}
+```json
+{ "query": "protein structure prediction", "limit": 20, "year_from": 2022 }
 ```
+
+Returns metadata list (title, abstract snippet, ids, venue, OA flag, etc).
 
 #### `ingest_metadata`
-```json
-// Input
-{ "query": "CRISPR therapeutics", "limit": 30, "filters": "{\"year_from\": 2021}" }
 
-// Output
-{ "total_fetched": 28, "total_upserted": 28, "skipped_no_abstract": 2, "errors": [] }
+```json
+{ "query": "CRISPR therapeutics", "limit": 30, "filters": "{\"year_from\": 2021}" }
 ```
 
-#### `ingest_by_ids`
-```json
-// Input
-{ "ids": ["649def34f8be52c8b66281af98ae884c09aef38b", "10.18653/v1/2020.acl-main.463"] }
+Returns ingest counts and errors.
 
-// Output — same as ingest_metadata
+#### `ingest_by_ids`
+
+```json
+{ "ids": ["649def34f8be52c8b66281af98ae884c09aef38b", "10.18653/v1/2020.acl-main.463"] }
 ```
 
 ---
@@ -105,49 +67,29 @@ uv run python -m orchestration.pipeline --query "..." --limit 20
 ### memory MCP
 
 #### `embed_and_store_papers`
-```json
-// Input — pass empty list to embed all pending papers in DB
-{ "paper_ids": [] }
-// or specific papers:
-{ "paper_ids": ["abc123", "def456"] }
 
-// Output
-{ "embedded": 20, "total_in_store": 20, "paper_ids": ["abc123", ...] }
+```json
+{ "paper_ids": [] }
 ```
 
-#### `semantic_search`
-```json
-// Input
-{ "query": "attention mechanism transformers", "top_k": 5 }
+Use empty list to embed all unembedded papers.
 
-// Output
-{
-  "query": "...",
-  "top_k": 5,
-  "results": [
-    { "paper_id": "...", "title": "...", "year": 2023, "similarity_score": 0.9142 }
-  ]
-}
+#### `semantic_search`
+
+```json
+{ "query": "attention mechanism transformers", "top_k": 5 }
+```
+
+#### `find_similar_papers`
+
+```json
+{ "paper_id": "abc123", "top_k": 10 }
 ```
 
 #### `cluster_topics`
-```json
-// Input
-{ "min_cluster_size": 3 }
 
-// Output
-{
-  "n_papers": 20,
-  "n_clusters": 5,
-  "clusters": [
-    {
-      "cluster_id": 0,
-      "size": 7,
-      "representative_paper_ids": ["abc123", "def456"],
-      "top_terms": ["generation", "code", "model", "language", "training"]
-    }
-  ]
-}
+```json
+{ "min_cluster_size": 3 }
 ```
 
 ---
@@ -155,178 +97,201 @@ uv run python -m orchestration.pipeline --query "..." --limit 20
 ### investor_signal MCP
 
 #### `score_investor_relevance`
-```json
-// Input
-{ "paper_id": "abc123" }
 
-// Output
+```json
+{ "paper_id": "abc123" }
+```
+
+Example output shape:
+
+```json
 {
   "paper_id": "abc123",
   "title": "...",
-  "total_score": 0.6742,
-  "confidence": 0.857,
+  "total_score": 0.71,
+  "confidence": 0.85,
   "features": {
-    "recency": 0.9,
-    "citation_velocity": 0.45,
-    "domain_momentum": 0.75,
-    "translational_potential": 0.625,
-    "commercialization_hints": 0.5,
-    "open_access_bonus": 0.8,
-    "venue_prestige": 1.0
+    "novelty": 0.82,
+    "investor_value": 0.74,
+    "buildability": 0.69,
+    "defensibility": 0.66,
+    "evidence_strength": 0.73,
+    "execution_risk": 0.28,
+    "conceptual_penalty": 0.19
   },
-  "top_signals": [
-    "Published 2024 (recency=0.90)",
-    "High-momentum domain keywords (score=0.75)"
-  ],
-  "caveats": ["Score is based on text pattern matching..."],
-  "disclaimer": "⚠️  NOT INVESTMENT ADVICE."
+  "top_signals": ["..."],
+  "caveats": ["..."],
+  "disclaimer": "⚠️  NOT INVESTMENT ADVICE. Scores reflect research signal patterns only."
 }
 ```
 
 #### `rank_papers_for_investor`
-```json
-// Input
-{ "query": "mRNA vaccine delivery", "top_k": 5 }
 
-// Output
+```json
+{ "query": "mRNA vaccine delivery", "top_k": 5, "pass_threshold": 0.65 }
+```
+
+Example output shape:
+
+```json
 {
   "query": "...",
+  "top_k": 5,
+  "pass_threshold": 0.65,
+  "accepted_count": 7,
   "ranked_papers": [
     {
       "paper_id": "...",
       "title": "...",
-      "semantic_score": 0.89,
-      "investor_score": 0.72,
-      "blended_score": 0.822,
-      "top_signals": ["Published 2024", "Benchmark results reported"]
+      "year": 2024,
+      "novelty_value_score": 0.78,
+      "passes_threshold": true,
+      "top_signals": ["..."],
+      "disclaimer": "⚠️  NOT INVESTMENT ADVICE. Scores reflect research signal patterns only."
     }
   ],
   "disclaimer": "⚠️  NOT INVESTMENT ADVICE."
 }
 ```
 
----
+#### `explain_score`
 
-## 4. Scoring Algorithm
-
-The investor relevance score is a **weighted sum** of 7 transparent features:
-
-| Feature | Weight | How it's computed |
-|---------|--------|-------------------|
-| `recency` | 12% | Years since publication (1.0 = current year, 0.0 = 10+ years old) |
-| `citation_velocity` | 22% | Citations per year, normalised to 100 cit/yr = 1.0 |
-| `domain_momentum` | 22% | Keyword hits from 40-term high-momentum list (LLMs, CRISPR, quantum, etc.) |
-| `translational_potential` | 20% | Benchmark/deployment keyword hits (SOTA, clinical trial, FDA, etc.) |
-| `commercialization_hints` | 12% | Startup/IP/product keyword hits |
-| `open_access_bonus` | 6% | 0.8 if OA, 0.2 if not |
-| `venue_prestige` | 6% | 1.0 if Nature/Science/top-tier conference, 0.3 otherwise |
-
-Confidence = fraction of features with raw score > 0.1.
-
-To **extend the scoring**: add terms to the lists in `investor_signal_mcp/server.py` or adjust weights in `compute_investor_score()`.
-
----
-
-## 5. OCR Integration (paddleocr MCP)
-
-The pipeline calls the existing paddleocr MCP server as a **child subprocess** using the MCP Python SDK's `stdio_client`. It:
-
-1. Starts `paddleocr_mcp --pipeline OCR --ppocr_source local` as a subprocess.
-2. Calls `session.list_tools()` to discover the OCR tool name dynamically.
-3. Passes the local image path to the tool.
-4. Extracts text from the response `TextContent` blocks.
-
-The paddleocr MCP binary path is hardcoded from the existing OpenCode config:
-```
-/Users/naveenstalin/Desktop/Uni/Spring Semester/AI Agents/MCP for data ingestion/
-    PaddleOCR/.venv-paddleocr-mcp/bin/paddleocr_mcp
+```json
+{ "paper_id": "abc123" }
 ```
 
-To change it, set `PADDLEOCR_COMMAND` in `.env` (handled in `orchestration/pipeline.py`).
+Returns weighted feature contributions plus penalty breakdown and pass/fail against configured threshold.
 
 ---
 
-## 6. Extending the Pipeline
+## 4) Scoring Design
 
-### Add a new paper source
+The ranking engine in `investor_signal_mcp/server.py` is now LLM-centered.
 
-1. Create `papers_mcp/new_source.py` following the pattern of `semantic_scholar.py`.
-2. Implement `search(query, limit, ...) -> list[Paper]` and `get_paper(id) -> Optional[Paper]`.
-3. Wire it into `papers_mcp/server.py` as a fallback.
+### Core behavior
 
-### Add a new scoring feature
+- Uses a strict rubric prompt for novelty/IP/value diligence.
+- Includes feasibility checks (can it be built?) and conceptuality checks.
+- Incorporates OCR text when available (`paper.ocr_text`) to enrich evidence.
+- Falls back to heuristic scoring only if LLM call is unavailable.
 
-1. Add terms to `investor_signal_mcp/server.py` or create a new `_compute_X_score()` function.
-2. Add the field to `FeatureScores` in `shared/models.py`.
-3. Update `weights` dict in `compute_investor_score()` (ensure weights sum to 1.0).
+### Weighted score
 
-### Switch to a different embedding model
+Positive weights:
+
+- `novelty`: 0.25
+- `investor_value`: 0.23
+- `buildability`: 0.22
+- `defensibility`: 0.16
+- `evidence_strength`: 0.14
+
+Penalties:
+
+- `execution_risk`: -0.12
+- `conceptual_penalty`: -0.18
+
+Total is clamped to `[0, 1]`.
+
+---
+
+## 5) Threshold Gating Behavior
+
+Two thresholds are used in orchestration:
+
+1. **Pass threshold** (`PAPER_PASS_THRESHOLD`, default `0.65`):
+   - Applied immediately after scoring all ingested papers.
+   - Only passed papers continue to next stages.
+
+2. **OCR threshold** (`OCR_SCORE_THRESHOLD`, default `0.6`):
+   - Applied only to already-passed papers.
+   - Requires OA + PDF URL to trigger OCR.
+
+Pipeline sequence in `orchestration/pipeline.py`:
+
+1) ingest -> 2) embed -> 3) score all -> 4) filter by pass threshold -> 5) OCR gate -> 6) re-score OCR'd passed papers.
+
+---
+
+## 6) Configuration Reference
+
+Key vars in `.env`:
 
 ```env
-EMBEDDING_MODEL=BAAI/bge-large-en-v1.5   # 1024-dim
-EMBEDDING_DIM=1024
+OPENAI_API_KEY=
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_SCORING_MODEL=gpt-4.1-mini
+
+PAPER_PASS_THRESHOLD=0.65
+OCR_SCORE_THRESHOLD=0.6
 ```
 
-Changing the model requires re-embedding all papers (delete existing Qdrant collection).
-
-### Use OpenAI embeddings
-
-```env
-EMBEDDING_BACKEND=openai
-OPENAI_API_KEY=sk-...
-OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-EMBEDDING_DIM=1536
-```
-
-### Enable persistent vector store
+Useful CLI overrides:
 
 ```bash
-docker run -d -p 6333:6333 -v $(pwd)/data/qdrant:/qdrant/storage qdrant/qdrant
-```
-```env
-QDRANT_URL=http://localhost:6333
+uv run python -m orchestration.pipeline \
+  --query "battery materials" \
+  --limit 30 \
+  --pass-threshold 0.7 \
+  --ocr-threshold 0.65
 ```
 
 ---
 
-## 7. Troubleshooting
+## 7) Extending The System
 
-| Symptom | Likely cause | Fix |
-|---------|-------------|-----|
-| `ModuleNotFoundError: fastembed` | deps not installed | `uv sync` |
-| `429 Too Many Requests` from S2 | No API key | Get free key at semanticscholar.org/product/api |
-| `Vector store is empty` | Skipped embed step | Run `embed_and_store_papers([])` |
-| `Paper not found in DB` | Not ingested | Run `ingest_metadata(query, ...)` first |
-| OCR returns empty text | PaddleOCR model not cached | First run downloads model; check logs |
-| `KeyError: 'embedding'` in qdrant | Dim mismatch after model change | Delete `data/qdrant` and re-embed |
+### Adjust scoring behavior
+
+Edit `investor_signal_mcp/server.py`:
+
+- `_NOVELTY_EVAL_SYSTEM_PROMPT` for rubric logic
+- `_SCORE_WEIGHTS` for positive feature weights
+- penalty multipliers in `compute_investor_score`
+
+If adding a new feature:
+
+1) Add field to `FeatureScores` (`shared/models.py`)
+2) Include it in evaluator JSON schema and parsing logic
+3) Update score aggregation and explanation output
+
+### Add new paper source
+
+1) Create `papers_mcp/new_source.py`
+2) Implement `search` and `get_paper`
+3) Wire fallback path in `papers_mcp/server.py`
 
 ---
 
-## 8. File Map
+## 8) Failure Modes / Debugging
 
-```
+- **LLM scoring unavailable**: check `OPENAI_API_KEY`, `OPENAI_BASE_URL`, model name.
+- **No accepted papers**: lower `PAPER_PASS_THRESHOLD`.
+- **No OCR triggered**: lower `OCR_SCORE_THRESHOLD` and verify OA PDF links.
+- **Vector store empty errors**: run embedding step before rank/search.
+- **Dim mismatch after embedding model change**: rebuild vector store.
+
+---
+
+## 9) File Map
+
+```text
 shared/
-  config.py          Settings from env vars
-  models.py          Pydantic models (Paper, InvestorScore, ...)
-  db.py              SQLite CRUD
-  embeddings.py      fastembed / OpenAI embedding provider
-  vector_store.py    Qdrant wrapper (in-memory or remote)
+  config.py          environment-backed settings
+  models.py          Paper, FeatureScores, InvestorScore, PipelineRun
+  db.py              SQLite persistence and row mapping
+  embeddings.py      fastembed/openai embeddings
+  vector_store.py    Qdrant wrapper
 
 papers_mcp/
-  server.py          MCP server — 4 tools
-  semantic_scholar.py  S2 API client with retry
-  openalex.py        OpenAlex client with retry
+  server.py          search + ingest tools
+  semantic_scholar.py
+  openalex.py
 
 memory_mcp/
-  server.py          MCP server — 5 tools
+  server.py          embedding/search/clustering tools
 
 investor_signal_mcp/
-  server.py          MCP server + scoring logic — 3 tools
+  server.py          novelty/IP/value scoring + rank/explain tools
 
 orchestration/
-  pipeline.py        run_pipeline() + CLI — full E2E workflow
-
-scripts/
-  test_pipeline.py   Smoke test with rich output
-  run_*.sh           One-line server starters
+  pipeline.py        end-to-end run with pass/OCR threshold gates
 ```

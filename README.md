@@ -1,135 +1,218 @@
 # Research Intelligence Pipeline
 
-An end-to-end academic research intelligence system exposing paper search, semantic memory, and investor-signal scoring as MCP tools callable from OpenCode.
+End-to-end research pipeline for sourcing papers, building semantic memory, and ranking papers by **novelty + buildability + IP/investor value** using an LLM rubric.
 
-> **Disclaimer:** Investor relevance scores are research pattern indicators only. **NOT investment advice.**
+> **Disclaimer:** Outputs are diligence signals only and are **NOT investment advice**.
+
+---
+
+## Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Running The System](#running-the-system)
+- [How Ranking Works](#how-ranking-works)
+- [Threshold Gates](#threshold-gates)
+- [MCP Tool Reference](#mcp-tool-reference)
+- [End-to-End Example](#end-to-end-example)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## Overview
+
+This project has three MCP servers plus one orchestrator:
+
+- `papers_mcp`: ingest metadata from Semantic Scholar / OpenAlex
+- `memory_mcp`: generate embeddings and semantic retrieval
+- `investor_signal_mcp`: LLM-based novelty/IP/value scoring
+- `orchestration/pipeline.py`: full run orchestration with threshold gates + OCR stage
+
+The ranking system is intentionally designed to avoid pure bibliometric ranking.  
+It focuses on:
+
+- novelty vs incremental work
+- practical buildability
+- evidence quality
+- defensibility / moat / potential IP value
+- execution risk and conceptual-only penalties
 
 ---
 
 ## Architecture
 
-```
-papers_mcp          memory_mcp          investor_signal_mcp
-    │                   │                        │
-    ▼                   ▼                        ▼
-Semantic Scholar    Qdrant (vector DB)    Feature scoring
-OpenAlex            fastembed             (recency, citations,
-    │                   │                 momentum, OCR signals)
-    └──────────────────┬┘                        │
-                       │                         │
-                  SQLite (papers.db)              │
-                       │                         │
-                  orchestration/pipeline.py ──────┘
-                       │
-                  PaddleOCR MCP (OCR gating)
+```text
+papers_mcp              memory_mcp               investor_signal_mcp
+    |                       |                            |
+    v                       v                            v
+Semantic Scholar        Embeddings + Qdrant        LLM novelty/IP/value evaluator
+OpenAlex                semantic retrieval         + penalties for risk/conceptuality
+    |                       |                            |
+    +-----------------------+----------------------------+
+                            |
+                       SQLite (papers.db)
+                            |
+                   orchestration/pipeline.py
+                            |
+                 optional OCR enrichment (PaddleOCR MCP)
 ```
 
 ---
 
-## Setup
+## Project Structure
 
-### 1. Prerequisites
+```text
+shared/
+  config.py
+  models.py
+  db.py
+  embeddings.py
+  vector_store.py
 
-- Python 3.11+
-- [uv](https://docs.astral.sh/uv/) package manager
-- [OpenCode](https://opencode.ai/) CLI
+papers_mcp/
+  server.py
+  semantic_scholar.py
+  openalex.py
 
-### 2. Install dependencies
+memory_mcp/
+  server.py
+
+investor_signal_mcp/
+  server.py
+
+orchestration/
+  pipeline.py
+
+scripts/
+  test_pipeline.py
+```
+
+---
+
+## Installation
+
+### Option A: `uv` (recommended)
 
 ```bash
 cd "Project Personal"
 uv sync
 ```
 
-This installs all packages into `.venv/` including:
-- `fastembed` (ONNX local embeddings, ~130 MB model download on first use)
-- `qdrant-client` (in-memory vector store, no Docker required)
-- `mcp`, `httpx`, `tenacity`, `scikit-learn`, `pymupdf`, `rich`
+### Option B: `pip` + `requirements.txt`
 
-### 3. Configure environment
+```bash
+cd "Project Personal"
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+---
+
+## Configuration
+
+Copy and edit environment file:
 
 ```bash
 cp .env.example .env
-# Edit .env — minimum required for offline mode: nothing!
-# Add S2_API_KEY for higher Semantic Scholar rate limits.
-# Add OPENAI_API_KEY + set EMBEDDING_BACKEND=openai for cloud embeddings.
 ```
 
-### 4. (Optional) Persistent vector store via Docker
+Important values:
 
-By default vectors are in-memory (lost on restart).  
-For persistence, start Qdrant and set `QDRANT_URL`:
+| Variable | Default | Purpose |
+|---|---|---|
+| `OPENAI_API_KEY` | empty | Enables LLM novelty scoring |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible endpoint |
+| `OPENAI_SCORING_MODEL` | `gpt-4.1-mini` | LLM used for scoring |
+| `PAPER_PASS_THRESHOLD` | `0.65` | Minimum score to proceed |
+| `OCR_SCORE_THRESHOLD` | `0.6` | Minimum score to trigger OCR stage |
+| `EMBEDDING_BACKEND` | `fastembed` | `fastembed` or `openai` |
+| `QDRANT_URL` | empty | Empty = in-memory store |
+| `DB_PATH` | `./data/papers.db` | SQLite storage |
 
-```bash
-docker run -d -p 6333:6333 -v $(pwd)/data/qdrant:/qdrant/storage qdrant/qdrant
-echo "QDRANT_URL=http://localhost:6333" >> .env
-```
+Notes:
+
+- If `OPENAI_API_KEY` is not set, ranking falls back to heuristic mode.
+- OCR runs only for passed papers that have OA PDFs.
 
 ---
 
-## Run Commands
+## Running The System
 
-### Start individual MCP servers (for testing)
+### Start MCP servers individually
 
 ```bash
-# Papers ingestion
 uv run python -m papers_mcp.server
-
-# Vector memory
 uv run python -m memory_mcp.server
-
-# Investor signal scoring
 uv run python -m investor_signal_mcp.server
-
-# Full pipeline (CLI mode)
-uv run python -m orchestration.pipeline --query "RNA therapeutics" --limit 20
 ```
 
-### Run the end-to-end test
+### Run full orchestration pipeline
 
 ```bash
-uv run python scripts/test_pipeline.py
-# Custom query:
-uv run python scripts/test_pipeline.py --query "CRISPR cancer" --limit 20 --ocr-threshold 0.55
+uv run python -m orchestration.pipeline \
+  --query "RNA therapeutics" \
+  --limit 20 \
+  --pass-threshold 0.65 \
+  --ocr-threshold 0.6 \
+  --top-k 10
+```
+
+### Run smoke test
+
+```bash
+uv run python scripts/test_pipeline.py --query "CRISPR delivery" --limit 20
 ```
 
 ---
 
-## OpenCode Usage
+## How Ranking Works
 
-After running `uv sync`, the three MCP servers are registered in `~/.config/opencode/opencode.json`.  
-Start OpenCode and verify:
+Ranking is implemented in `investor_signal_mcp/server.py`.
 
-```
-/mcps
-```
+For each paper, an evaluator prompt scores:
 
-You should see `paddleocr`, `papers`, `memory`, and `investor_signal` listed.
+- `novelty` (25%)
+- `investor_value` (23%)
+- `buildability` (22%)
+- `defensibility` (16%)
+- `evidence_strength` (14%)
 
-### Sample prompts
+Then subtracts penalties:
 
-```
-# Ingest papers
-Use the papers MCP to ingest 20 papers on "protein language models"
+- `execution_risk` (-12%)
+- `conceptual_penalty` (-18%)
 
-# Semantic search
-Search my vector memory for papers about "drug target identification"
+Final score is clamped to `0..1`.
 
-# Investor ranking
-Rank the stored papers for investor relevance on the topic of "mRNA delivery systems"
+The rubric checks include:
 
-# Full pipeline
-Run the pipeline for "quantum error correction" with limit=20
+- Is this genuinely new or just incremental?
+- Can it be built in a practical horizon?
+- Is there implementation detail, not just concept?
+- Is there strong evidence (benchmarks/prototypes/trials)?
+- Is there credible IP/moat and investor value path?
+- Are blockers (regulatory, manufacturing, dependencies) severe?
 
-# Explain a score
-Explain the investor score for paper <paper_id>
+---
 
-# Find similar
-Find the 5 most similar papers to <paper_id>
+## Threshold Gates
 
-# Cluster topics
-Cluster my stored papers into topic groups
-```
+Pipeline gating in `orchestration/pipeline.py`:
+
+1. Ingest papers
+2. Embed papers
+3. Score all papers
+4. Keep only papers with `score >= PAPER_PASS_THRESHOLD`
+5. On passed papers, OCR papers with `score >= OCR_SCORE_THRESHOLD` and OA PDF
+6. Re-score OCR-enriched papers
+7. Output top passed papers
+
+This ensures low-signal papers are filtered early.
 
 ---
 
@@ -137,77 +220,56 @@ Cluster my stored papers into topic groups
 
 ### `papers` server
 
-| Tool | Description |
-|------|-------------|
-| `search_papers(query, limit, year_from?, year_to?)` | Search S2 + OpenAlex, return metadata |
-| `get_paper_details(paper_id_or_doi)` | Full details for one paper |
-| `ingest_metadata(query, limit, filters?)` | Search + upsert into SQLite |
-| `ingest_by_ids(ids[])` | Ingest specific papers by ID/DOI |
+- `search_papers(query, limit, year_from?, year_to?)`
+- `get_paper_details(paper_id_or_doi)`
+- `ingest_metadata(query, limit, filters?)`
+- `ingest_by_ids(ids[])`
 
 ### `memory` server
 
-| Tool | Description |
-|------|-------------|
-| `embed_and_store_papers(paper_ids[])` | Generate + store embeddings ([] = all pending) |
-| `semantic_search(query, top_k)` | Vector search by natural-language query |
-| `find_similar_papers(paper_id, top_k)` | Papers similar to a given paper |
-| `cluster_topics(min_cluster_size?, n_clusters?)` | KMeans topic clustering |
-| `get_paper_feature_vector(paper_id)` | Retrieve embedding metadata |
+- `embed_and_store_papers(paper_ids[])`
+- `semantic_search(query, top_k)`
+- `find_similar_papers(paper_id, top_k)`
+- `cluster_topics(min_cluster_size?, n_clusters?)`
+- `get_paper_feature_vector(paper_id)`
 
 ### `investor_signal` server
 
-| Tool | Description |
-|------|-------------|
-| `score_investor_relevance(paper_id)` | Score one paper (0–1) |
-| `rank_papers_for_investor(query, top_k)` | Semantic + investor blended ranking |
-| `explain_score(paper_id)` | Detailed feature breakdown |
+- `score_investor_relevance(paper_id)`
+- `rank_papers_for_investor(query, top_k, pass_threshold?)`
+- `explain_score(paper_id)`
 
 ---
 
-## OCR Gating Logic
+## End-to-End Example
 
+```bash
+# 1) Ingest papers
+uv run python -m papers_mcp.server
+
+# 2) Embed papers
+uv run python -m memory_mcp.server
+
+# 3) Run full pipeline with strict threshold
+uv run python -m orchestration.pipeline \
+  --query "solid-state battery electrolytes" \
+  --limit 30 \
+  --pass-threshold 0.72 \
+  --ocr-threshold 0.68 \
+  --top-k 8
 ```
-For each paper with investor_score >= OCR_SCORE_THRESHOLD:
-    IF is_open_access AND pdf_url is available:
-        1. Download PDF
-        2. Convert to images (first 8 pages, 150 DPI)
-        3. Call paddleocr MCP on each image
-        4. Append extracted text to paper record
-        5. Re-compute investor score with enriched text
-    ELSE:
-        Skip (log reason)
-```
-
-Default threshold: `OCR_SCORE_THRESHOLD=0.6` (set in `.env`).
 
 ---
 
-## Environment Variables
+## Troubleshooting
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `S2_API_KEY` | _(empty)_ | Semantic Scholar API key |
-| `OPENALEX_EMAIL` | example.com | Polite pool identifier |
-| `OPENAI_API_KEY` | _(empty)_ | OpenAI key (for cloud embeddings) |
-| `EMBEDDING_BACKEND` | `fastembed` | `fastembed` or `openai` |
-| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Model name |
-| `EMBEDDING_DIM` | `384` | Vector dimension |
-| `QDRANT_URL` | _(empty)_ | Qdrant server URL (blank = in-memory) |
-| `QDRANT_COLLECTION` | `papers` | Collection name |
-| `DB_PATH` | `./data/papers.db` | SQLite database path |
-| `OCR_SCORE_THRESHOLD` | `0.6` | Minimum score to trigger PDF OCR |
-| `PDF_DOWNLOAD_DIR` | `./data/pdfs` | PDF cache directory |
-| `LOG_LEVEL` | `INFO` | Logging verbosity |
-| `LOG_DIR` | `./logs` | Log file directory |
-
----
-
-## Rate Limits & Retries
-
-Both API clients use `tenacity` with exponential backoff:
-- Up to 6 retries, starting at 2 seconds, capping at 60 seconds.
-- Respects `Retry-After` headers on HTTP 429.
-- Semantic Scholar: ~1 req/sec without key; ~1000 req/min with key.
-- OpenAlex: 10 req/sec (polite pool).
-
-Retry events are logged at `WARNING` level in the respective server log files.
+- **Vector store empty**
+  - Run embedding step first (`embed_and_store_papers([])`).
+- **LLM scoring falls back to heuristic**
+  - Check `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and model name.
+- **No papers pass threshold**
+  - Lower `PAPER_PASS_THRESHOLD` slightly (e.g. `0.65 -> 0.58`).
+- **No OCR triggered**
+  - Ensure papers have OA `pdf_url` and pass OCR threshold.
+- **Rate-limit errors from sources**
+  - Configure `S2_API_KEY` and use retries/backoff.

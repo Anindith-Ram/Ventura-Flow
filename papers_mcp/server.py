@@ -42,7 +42,7 @@ mcp = FastMCP("papers", instructions=(
 ))
 
 # ── database init ─────────────────────────────────────────────────────────────
-from shared.db import init_db, upsert_papers, get_paper, get_papers_by_ids, paper_exists
+from shared.db import init_db, upsert_papers, get_paper
 from shared.models import IngestResult, Paper
 
 init_db()

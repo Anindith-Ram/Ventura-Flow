@@ -4,7 +4,7 @@ Steps
 -----
 1. Metadata ingestion   (Semantic Scholar / OpenAlex)
 2. Embedding            (fastembed / OpenAI)
-3. Investor ranking     (feature-based scoring)
+3. Novelty ranking      (LLM novelty/IP/value scoring)
 4. OCR gating           (PDF download → paddleocr MCP → re-score)
 5. Artifact export      (JSON run report + logs)
 
@@ -23,9 +23,7 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import sys
-import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -46,9 +44,9 @@ logger = logging.getLogger("pipeline")
 
 from shared.db import (
     finish_pipeline_run,
+    get_paper,
     get_papers_by_ids,
     init_db,
-    list_unembedded_papers,
     mark_embedded,
     save_pipeline_run,
     update_investor_score,
@@ -69,14 +67,11 @@ def _step_ingest(query: str, limit: int) -> list[str]:
 
     logger.info("[Step 1] Ingesting metadata for query=%r limit=%d", query, limit)
     papers: list[Paper] = []
-    errors: list[str] = []
-
     try:
         s2 = SemanticScholarClient()
         papers = s2.search(query, limit=limit)
         logger.info("Semantic Scholar: %d papers", len(papers))
     except Exception as exc:
-        errors.append(str(exc))
         logger.warning("S2 failed: %s", exc)
 
     if len(papers) < limit // 2:
@@ -271,7 +266,6 @@ def _run_ocr_on_paper(paper: Paper) -> Optional[str]:
 
 def _step_ocr_gate(
     top_scores: list[InvestorScore],
-    all_paper_ids: list[str],
     ocr_threshold: float,
 ) -> list[str]:
     """Run OCR on papers above threshold; returns list of paper_ids that were OCR'd."""
@@ -283,9 +277,7 @@ def _step_ocr_gate(
     )
 
     for score in papers_above:
-        paper = next(
-            (p for p in get_papers_by_ids([score.paper_id])), None
-        )
+        paper = get_paper(score.paper_id)
         if paper is None:
             continue
         if not paper.is_open_access or not paper.pdf_url:
@@ -314,6 +306,7 @@ def run_pipeline(
     query: str,
     limit: int = 20,
     ocr_threshold: Optional[float] = None,
+    pass_threshold: Optional[float] = None,
     top_k: int = 10,
 ) -> PipelineRun:
     """Execute the full research intelligence pipeline.
@@ -322,6 +315,7 @@ def run_pipeline(
         query:         Research topic / keyword query.
         limit:         Number of papers to ingest.
         ocr_threshold: Investor score threshold to trigger OCR (default from env).
+        pass_threshold: Minimum novelty/value score required to continue.
         top_k:         Number of papers to include in ranked output.
 
     Returns:
@@ -330,6 +324,8 @@ def run_pipeline(
     init_db()
     if ocr_threshold is None:
         ocr_threshold = settings.ocr_score_threshold
+    if pass_threshold is None:
+        pass_threshold = settings.paper_pass_threshold
 
     run_id = str(uuid.uuid4())[:8]
     started_at = datetime.utcnow()
@@ -342,16 +338,25 @@ def run_pipeline(
     # Step 2: Embed.
     n_embedded = _step_embed(paper_ids)
 
-    # Step 3: Rank by investor signal.
-    top_scores = _step_rank(paper_ids, top_k=top_k)
+    # Step 3: Rank by novelty / investor value, then threshold-gate.
+    all_scores = _step_rank(paper_ids, top_k=len(paper_ids))
+    passed_scores = [s for s in all_scores if s.total_score >= pass_threshold]
+    top_scores = passed_scores[:top_k]
+    passed_ids = [s.paper_id for s in passed_scores]
+    logger.info(
+        "[Step 3 gate] pass_threshold=%.2f; %d/%d papers pass to next stage",
+        pass_threshold, len(passed_scores), len(all_scores),
+    )
 
     # Step 4: Conditional OCR.
-    ocr_triggered = _step_ocr_gate(top_scores, paper_ids, ocr_threshold)
+    ocr_triggered = _step_ocr_gate(passed_scores, ocr_threshold)
 
     # Step 5: Re-score OCR'd papers (if any).
     if ocr_triggered:
         logger.info("Re-scoring %d OCR'd papers", len(ocr_triggered))
-        top_scores = _step_rank(paper_ids, top_k=top_k)
+        rescored_passed = _step_rank(passed_ids, top_k=len(passed_ids))
+        passed_scores = [s for s in rescored_passed if s.total_score >= pass_threshold]
+        top_scores = passed_scores[:top_k]
 
     finished_at = datetime.utcnow()
 
@@ -362,8 +367,10 @@ def run_pipeline(
         "run_id": run_id,
         "query": query,
         "limit": limit,
+        "pass_threshold": pass_threshold,
         "ocr_threshold": ocr_threshold,
         "total_papers_ingested": len(paper_ids),
+        "total_papers_passed_threshold": len(passed_scores),
         "total_embedded": n_embedded,
         "top_investor_papers": [s.model_dump() for s in top_scores],
         "ocr_triggered_for": ocr_triggered,
@@ -383,6 +390,7 @@ def run_pipeline(
         run_id=run_id,
         query=query,
         total_papers_ingested=len(paper_ids),
+        total_papers_passed_threshold=len(passed_scores),
         total_embedded=n_embedded,
         top_investor_papers=top_scores,
         ocr_triggered_for=ocr_triggered,
@@ -399,6 +407,7 @@ if __name__ == "__main__":
     parser.add_argument("--query", required=True, help="Research topic")
     parser.add_argument("--limit", type=int, default=20, help="Papers to ingest")
     parser.add_argument("--ocr-threshold", type=float, default=None, help="OCR score threshold (0-1)")
+    parser.add_argument("--pass-threshold", type=float, default=None, help="Score threshold required to proceed (0-1)")
     parser.add_argument("--top-k", type=int, default=10, help="Top papers to report")
     args = parser.parse_args()
 
@@ -406,12 +415,14 @@ if __name__ == "__main__":
         query=args.query,
         limit=args.limit,
         ocr_threshold=args.ocr_threshold,
+        pass_threshold=args.pass_threshold,
         top_k=args.top_k,
     )
     print(json.dumps({
         "run_id": result.run_id,
         "query": result.query,
         "ingested": result.total_papers_ingested,
+        "pass_threshold": args.pass_threshold if args.pass_threshold is not None else settings.paper_pass_threshold,
         "embedded": result.total_embedded,
         "ocr_triggered": result.ocr_triggered_for,
         "top_papers": [

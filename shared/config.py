@@ -26,6 +26,7 @@ class Settings:
     openai_api_key: str
     openai_base_url: str
     openai_embedding_model: str
+    openai_scoring_model: str
 
     # ── Vector store ─────────────────────────────────────────────────────────
     qdrant_url: str
@@ -37,6 +38,7 @@ class Settings:
 
     # ── Pipeline behaviour ───────────────────────────────────────────────────
     ocr_score_threshold: float
+    paper_pass_threshold: float
     pdf_download_dir: str
 
     # ── Logging ───────────────────────────────────────────────────────────────
@@ -53,6 +55,7 @@ class Settings:
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
         self.openai_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         self.openai_embedding_model = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+        self.openai_scoring_model = os.getenv("OPENAI_SCORING_MODEL", "gpt-4.1-mini")
 
         self.qdrant_url = os.getenv("QDRANT_URL", "")
         self.qdrant_api_key = os.getenv("QDRANT_API_KEY", "")
@@ -61,6 +64,7 @@ class Settings:
         self.db_path = os.getenv("DB_PATH", str(_ROOT / "data" / "papers.db"))
 
         self.ocr_score_threshold = float(os.getenv("OCR_SCORE_THRESHOLD", "0.6"))
+        self.paper_pass_threshold = float(os.getenv("PAPER_PASS_THRESHOLD", "0.65"))
         self.pdf_download_dir = os.getenv("PDF_DOWNLOAD_DIR", str(_ROOT / "data" / "pdfs"))
 
         self.log_level = os.getenv("LOG_LEVEL", "INFO")
