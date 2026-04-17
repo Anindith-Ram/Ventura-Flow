@@ -1,23 +1,30 @@
 """
 bull_researcher.py -- SCOUT-BULL two-phase researcher.
 
-Phase 1: generate_queries(pipe, paper) -> list[str]
-Phase 2: synthesize_brief(pipe, paper, search_results) -> str  (markdown brief)
+Phase 1: generate_queries(paper) -> list[str]
+Phase 2: synthesize_brief(paper, search_results) -> str  (markdown brief)
 """
-import sys, os, json, re
+import argparse
+import json
+import re
+import sys
+import os
+from datetime import datetime
+from pathlib import Path
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from prompts import BULL_RESEARCHER_SYSTEM_PROMPT
+from tools.llm import call_llm
 
 AGENT_NAME = "BULL_RESEARCHER"
+MODEL = "qwen3:8b"
 
 
 def _parse_queries(raw_output: str) -> list[str]:
     """Extract the JSON query list from the model's output. Robust to stray text."""
-    # Try fenced json block first
     m = re.search(r"```json\s*(\{.*?\})\s*```", raw_output, re.DOTALL)
     if not m:
-        # Fallback: any {...} containing "queries"
         m = re.search(r"(\{[^{}]*\"queries\"[^{}]*\})", raw_output, re.DOTALL)
     if not m:
         raise ValueError(f"Could not locate queries JSON in output:\n{raw_output[:500]}")
@@ -29,7 +36,7 @@ def _parse_queries(raw_output: str) -> list[str]:
     return [str(q).strip() for q in queries if str(q).strip()]
 
 
-def generate_queries(pipe, paper: dict, logger=None) -> list[str]:
+def generate_queries(paper: dict, logger=None) -> list[str]:
     def log(msg):
         if logger: logger(f"[{AGENT_NAME}] {msg}")
 
@@ -38,18 +45,13 @@ def generate_queries(pipe, paper: dict, logger=None) -> list[str]:
         "PHASE: QUERY_GENERATION\n\n"
         f"paper:\n```json\n{json.dumps(paper, indent=2)}\n```"
     )
-    messages = [
-        {"role": "system", "content": BULL_RESEARCHER_SYSTEM_PROMPT},
-        {"role": "user",   "content": user_msg},
-    ]
-    result = pipe(messages, max_new_tokens=512, temperature=0.3, do_sample=True)
-    raw = result[0]["generated_text"][-1]["content"]
+    raw = call_llm(MODEL, BULL_RESEARCHER_SYSTEM_PROMPT, user_msg, temperature=0.3)
     queries = _parse_queries(raw)
     log(f"Generated {len(queries)} queries")
     return queries
 
 
-def synthesize_brief(pipe, paper: dict, search_results: dict, logger=None) -> str:
+def synthesize_brief(paper: dict, search_results: dict, logger=None) -> str:
     def log(msg):
         if logger: logger(f"[{AGENT_NAME}] {msg}")
 
@@ -59,11 +61,43 @@ def synthesize_brief(pipe, paper: dict, search_results: dict, logger=None) -> st
         f"paper:\n```json\n{json.dumps(paper, indent=2)}\n```\n\n"
         f"search_results:\n```json\n{json.dumps(search_results, indent=2)}\n```"
     )
-    messages = [
-        {"role": "system", "content": BULL_RESEARCHER_SYSTEM_PROMPT},
-        {"role": "user",   "content": user_msg},
-    ]
-    result = pipe(messages, max_new_tokens=3000, temperature=0.4, do_sample=True)
-    brief = result[0]["generated_text"][-1]["content"]
+    brief = call_llm(MODEL, BULL_RESEARCHER_SYSTEM_PROMPT, user_msg, temperature=0.4)
     log(f"Brief length: {len(brief)} chars")
     return brief
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser(description="Run Bull Researcher standalone")
+    ap.add_argument("--paper", default="sample_input.json", help="Path to paper JSON")
+    ap.add_argument("--no-search", action="store_true", help="Skip DuckDuckGo search")
+    ap.add_argument("--output-dir", default="outputs", help="Directory for output files")
+    args = ap.parse_args()
+
+    project_root = Path(__file__).resolve().parent.parent
+    paper_path = Path(args.paper) if Path(args.paper).is_absolute() else project_root / args.paper
+    output_dir = Path(args.output_dir) if Path(args.output_dir).is_absolute() else project_root / args.output_dir
+    output_dir.mkdir(exist_ok=True)
+
+    paper = json.loads(paper_path.read_text())
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    def log(msg):
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
+
+    queries = generate_queries(paper, logger=log)
+    (output_dir / f"{run_id}_bull_queries.json").write_text(json.dumps({"queries": queries}, indent=2))
+    log(f"Queries saved to {run_id}_bull_queries.json")
+
+    if args.no_search:
+        log("--no-search: stubbing empty results")
+        search_results = {q: [] for q in queries}
+    else:
+        from tools.search import batch_search
+        log(f"Running {len(queries)} DuckDuckGo searches...")
+        search_results = batch_search(queries, max_results=5)
+        log(f"Retrieved {sum(len(v) for v in search_results.values())} hits")
+    (output_dir / f"{run_id}_bull_search_raw.json").write_text(json.dumps(search_results, indent=2))
+
+    brief = synthesize_brief(paper, search_results, logger=log)
+    (output_dir / f"{run_id}_bull_brief.md").write_text(brief)
+    log(f"Brief saved to {run_id}_bull_brief.md")
