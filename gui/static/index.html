@@ -2,424 +2,288 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Ventura Flow</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
 :root {
-  --bg: #0a0c10;
-  --surface: #11141b;
-  --surface2: #181c26;
-  --surface3: #1e2230;
-  --border: #252a38;
-  --border2: #2e3548;
-  --text: #dde1ec;
-  --muted: #636b82;
-  --muted2: #8892a8;
-  --accent: #5b6af8;
-  --accent-dim: rgba(91,106,248,0.15);
-  --bull: #22d47a;
-  --bull-dim: rgba(34,212,122,0.12);
-  --bear: #f2445c;
-  --bear-dim: rgba(242,68,92,0.12);
-  --judge: #f5a623;
-  --judge-dim: rgba(245,166,35,0.12);
-  --success: #22d47a;
-  --warning: #f5a623;
-  --danger: #f2445c;
+  --bg:#090c12; --surf:#10141d; --surf2:#161b27; --surf3:#1c2133;
+  --bdr:#232840; --bdr2:#2d3452; --text:#d8dceb; --muted:#5a6180; --muted2:#8891ab;
+  --accent:#5b6af8; --accent-d:rgba(91,106,248,.14);
+  --bull:#1fd67a; --bull-d:rgba(31,214,122,.1);
+  --bear:#f04060; --bear-d:rgba(240,64,96,.1);
+  --judge:#f5a623; --judge-d:rgba(245,166,35,.1);
+  --ok:#1fd67a; --warn:#f5a623; --err:#f04060;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; overflow: hidden; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-  background: var(--bg); color: var(--text); font-size: 13px;
-  display: flex; flex-direction: column;
-}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:13px;display:flex;flex-direction:column}
 
-/* ── Header ── */
-.header {
-  display: flex; align-items: center; gap: 20px;
-  padding: 0 20px; height: 48px; min-height: 48px;
-  background: var(--surface); border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.logo { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; color: var(--text); }
-.logo em { color: var(--accent); font-style: normal; }
-.header-status { font-size: 11px; color: var(--muted); }
-.header-spacer { flex: 1; }
-.pip-indicator {
-  display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted);
-}
-.pip-dot {
-  width: 7px; height: 7px; border-radius: 50%; background: var(--border2);
-  transition: background 0.3s;
-}
-.pip-dot.active { background: var(--success); animation: blink 1.2s infinite; }
-.pip-dot.done { background: var(--success); animation: none; }
-.pip-dot.error { background: var(--danger); animation: none; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+/* Header */
+.hdr{display:flex;align-items:center;gap:16px;padding:0 18px;height:46px;min-height:46px;background:var(--surf);border-bottom:1px solid var(--bdr);flex-shrink:0}
+.logo{font-size:15px;font-weight:700;letter-spacing:-.3px}.logo em{color:var(--accent);font-style:normal}
+.hdr-pip{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.pip-d{width:7px;height:7px;border-radius:50%;background:var(--bdr2);transition:background .3s}
+.pip-d.active{background:var(--ok);animation:blink 1.2s infinite}
+.pip-d.done{background:var(--ok)}
+.pip-d.err{background:var(--err)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
-/* ── Layout ── */
-.layout {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  flex: 1; overflow: hidden;
-}
+/* Layout */
+.layout{display:grid;grid-template-columns:290px 1fr;flex:1;overflow:hidden}
 
-/* ── Sidebar ── */
-.sidebar {
-  display: flex; flex-direction: column; overflow: hidden;
-  background: var(--surface); border-right: 1px solid var(--border);
-}
-.sidebar-block {
-  padding: 14px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
-}
-.sidebar-block h3 {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
-  color: var(--muted); margin-bottom: 10px; font-weight: 600;
-}
-.sidebar-history { flex: 1; overflow-y: auto; padding: 10px; }
+/* Sidebar */
+.sidebar{display:flex;flex-direction:column;overflow:hidden;background:var(--surf);border-right:1px solid var(--bdr)}
+.sb-block{padding:12px 14px;border-bottom:1px solid var(--bdr);flex-shrink:0}
+.sb-block h3{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:9px;font-weight:600}
+.sb-hist{flex:1;overflow-y:auto;padding:8px}
+textarea,input[type=text],select{width:100%;background:var(--surf2);border:1px solid var(--bdr);color:var(--text);border-radius:6px;padding:7px 10px;font-family:'Menlo','Monaco',monospace;font-size:11px;line-height:1.5;outline:none;transition:border-color .15s}
+textarea{resize:vertical;min-height:110px}
+textarea:focus,input[type=text]:focus,select:focus{border-color:var(--accent)}
+select{font-family:inherit;font-size:12px;cursor:pointer}
+.btn-row{display:flex;gap:6px;margin-top:7px}
+.btn{flex:1;padding:8px 10px;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;letter-spacing:.2px}
+.btn-p{background:var(--accent);color:#fff}.btn-p:hover:not(:disabled){filter:brightness(1.12)}.btn-p:disabled{opacity:.4;cursor:not-allowed}
+.btn-g{background:transparent;border:1px solid var(--bdr);color:var(--muted2)}.btn-g:hover{border-color:var(--bdr2);color:var(--text)}
+.opt-row{display:flex;align-items:center;gap:7px;margin-bottom:7px;font-size:12px;color:var(--muted2)}
+.opt-row input[type=checkbox]{width:14px;height:14px;accent-color:var(--accent);cursor:pointer}
+.opt-row label{cursor:pointer}
+.run-item{padding:7px 9px;border-radius:7px;cursor:pointer;margin-bottom:4px;border:1px solid transparent;transition:all .12s}
+.run-item:hover{background:var(--surf2);border-color:var(--bdr)}
+.run-item.active{background:var(--surf2);border-color:var(--accent)}
+.run-title{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.run-meta{font-size:10px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:4px}
+.sdot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.sdot.running{background:var(--warn);animation:blink 1.2s infinite}
+.sdot.complete{background:var(--ok)}
+.sdot.error{background:var(--err)}
 
-textarea, input[type=text], select {
-  width: 100%; background: var(--surface2); border: 1px solid var(--border);
-  color: var(--text); border-radius: 6px; padding: 8px 10px;
-  font-family: 'Menlo', 'Monaco', monospace; font-size: 11px; line-height: 1.5;
-  outline: none; transition: border-color 0.15s;
-}
-textarea { resize: vertical; min-height: 140px; }
-textarea:focus, input[type=text]:focus, select:focus { border-color: var(--accent); }
-select { font-family: inherit; font-size: 12px; cursor: pointer; }
+/* Main */
+.main{display:flex;flex-direction:column;overflow:hidden}
 
-.btn-row { display: flex; gap: 6px; margin-top: 8px; }
-.btn {
-  flex: 1; padding: 8px 12px; border: none; border-radius: 6px;
-  font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s;
-  letter-spacing: 0.2px;
-}
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover:not(:disabled) { filter: brightness(1.15); }
-.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-ghost {
-  background: transparent; border: 1px solid var(--border); color: var(--muted2);
-}
-.btn-ghost:hover { border-color: var(--border2); color: var(--text); }
+/* Tabs */
+.tabs{display:flex;background:var(--surf);border-bottom:1px solid var(--bdr);padding:0 18px;flex-shrink:0;overflow-x:auto}
+.tabs::-webkit-scrollbar{height:0}
+.tab{padding:11px 13px;font-size:12px;color:var(--muted2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;display:flex;align-items:center;gap:5px;user-select:none}
+.tab:hover{color:var(--text)}.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.badge{background:var(--accent);color:#fff;border-radius:8px;font-size:9px;padding:1px 5px;font-weight:700;display:none}
+.badge.show{display:inline}
 
-.opt-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: var(--muted2); }
-.opt-row input[type=checkbox] { width: 14px; height: 14px; accent-color: var(--accent); }
-.opt-row label { cursor: pointer; }
+/* Panels */
+.content{flex:1;overflow:hidden;position:relative}
+.panel{display:none;position:absolute;inset:0;overflow-y:auto;padding:18px}
+.panel.active{display:flex;flex-direction:column;gap:14px}
 
-.run-item {
-  padding: 8px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 4px;
-  border: 1px solid transparent; transition: all 0.12s;
-}
-.run-item:hover { background: var(--surface2); border-color: var(--border); }
-.run-item.active { background: var(--surface2); border-color: var(--accent); }
-.run-title { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.run-meta { font-size: 10px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 5px; }
-.status-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-.status-dot.running { background: var(--warning); animation: blink 1.2s infinite; }
-.status-dot.complete { background: var(--success); }
-.status-dot.error { background: var(--danger); }
+/* Cards */
+.card{background:var(--surf);border:1px solid var(--bdr);border-radius:11px;overflow:hidden}
+.card-h{padding:11px 16px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:9px}
+.card-title{font-weight:600;font-size:13px}
+.card-body{padding:16px}
 
-/* ── Main ── */
-.main { display: flex; flex-direction: column; overflow: hidden; }
+/* Two-col */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 
-/* ── Tabs ── */
-.tabs {
-  display: flex; background: var(--surface); border-bottom: 1px solid var(--border);
-  padding: 0 20px; flex-shrink: 0; overflow-x: auto;
-}
-.tabs::-webkit-scrollbar { height: 0; }
-.tab {
-  padding: 12px 14px; font-size: 12px; color: var(--muted2); cursor: pointer;
-  border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap;
-  display: flex; align-items: center; gap: 5px; user-select: none;
-}
-.tab:hover { color: var(--text); }
-.tab.active { color: var(--text); border-bottom-color: var(--accent); }
-.badge {
-  background: var(--accent); color: #fff; border-radius: 8px;
-  font-size: 9px; padding: 1px 5px; font-weight: 700; display: none;
-}
-.badge.show { display: inline; }
+/* Markdown */
+.md{font-size:12.5px;line-height:1.8;color:var(--text)}
+.md h1{font-size:16px;margin:0 0 8px}
+.md h2{font-size:13px;color:var(--accent);margin:12px 0 5px;text-transform:uppercase;letter-spacing:.5px}
+.md h3{font-size:12px;color:var(--muted2);margin:8px 0 3px}
+.md p{margin-bottom:8px}
+.md ul,.md ol{margin:0 0 8px 18px}
+.md li{margin-bottom:3px}
+.md strong{color:var(--text);font-weight:600}
+.md code{background:var(--surf2);padding:1px 5px;border-radius:4px;font-size:11px}
+.md blockquote{border-left:3px solid var(--bdr2);padding-left:10px;color:var(--muted2);margin:6px 0}
+.md table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:12px}
+.md th{background:var(--surf2);padding:5px 9px;border:1px solid var(--bdr);text-align:left}
+.md td{padding:4px 9px;border:1px solid var(--bdr)}
+.md a{color:var(--accent);text-decoration:none}.md a:hover{text-decoration:underline}
 
-/* ── Tab Panels ── */
-.content { flex: 1; overflow: hidden; position: relative; }
-.panel {
-  display: none; position: absolute; inset: 0; overflow-y: auto;
-  padding: 20px;
-}
-.panel.active { display: flex; flex-direction: column; gap: 16px; }
+/* Sources panel */
+.sources-wrap{margin-top:10px;border-top:1px solid var(--bdr);padding-top:10px}
+.sources-toggle{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;user-select:none}
+.sources-toggle:hover{color:var(--muted2)}
+.sources-list{display:none;margin-top:8px;flex-direction:column;gap:4px}
+.source-item{display:flex;gap:8px;align-items:flex-start;padding:6px 9px;background:var(--surf2);border-radius:6px;font-size:11px}
+.source-num{color:var(--accent);font-weight:700;flex-shrink:0;min-width:18px}
+.source-link{color:var(--muted2);word-break:break-all}.source-link:hover{color:var(--text)}
 
-/* ── Pipeline Viz ── */
-.viz-wrap {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-  padding: 20px 24px; flex-shrink: 0;
-}
-.viz-title {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
-  margin-bottom: 16px;
-}
-.pipeline-flow {
-  display: flex; align-items: center; gap: 0;
-}
-.tracks {
-  display: flex; flex-direction: column; gap: 12px;
-}
-.track { display: flex; align-items: center; gap: 0; }
-.snode {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  min-width: 120px;
-}
-.sbox {
-  padding: 7px 14px; border-radius: 8px; border: 1.5px solid var(--border2);
-  font-size: 11px; font-weight: 600; text-align: center;
-  background: var(--surface2); color: var(--muted2);
-  transition: all 0.3s; width: 100%;
-}
-.sbox.bull { border-color: var(--bull); color: var(--bull); background: var(--bull-dim); }
-.sbox.bear { border-color: var(--bear); color: var(--bear); background: var(--bear-dim); }
-.sbox.judge-c { border-color: var(--judge); color: var(--judge); background: var(--judge-dim); }
-.sbox.running { animation: snode-pulse 1.4s infinite; }
-.sbox.done { opacity: 0.6; }
-.sbox.error { border-color: var(--danger) !important; color: var(--danger) !important; }
-@keyframes snode-pulse {
-  0%,100% { box-shadow: 0 0 0 0 currentColor; }
-  50% { box-shadow: 0 0 10px 2px currentColor; }
-}
-.slabel { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-.sarrow {
-  width: 36px; height: 1.5px; background: var(--border2); flex-shrink: 0;
-  position: relative;
-}
-.sarrow::after {
-  content: ''; position: absolute; right: -4px; top: -3.5px;
-  border: 4px solid transparent; border-left-color: var(--border2);
-}
-.sarrow.active { background: var(--accent); }
-.sarrow.active::after { border-left-color: var(--accent); }
-.merge-block {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 0 8px; gap: 0;
-}
-.merge-line { width: 1.5px; background: var(--border2); }
-.merge-horiz {
-  height: 1.5px; width: 28px; background: var(--border2); flex-shrink: 0;
-}
-.merge-horiz.active { background: var(--accent); }
-.merge-line.active { background: var(--accent); }
+/* Pipeline viz */
+.viz-wrap{background:var(--surf);border:1px solid var(--bdr);border-radius:11px;padding:18px 22px;flex-shrink:0}
+.viz-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:14px}
+.pflow{display:flex;align-items:center}
+.tracks{display:flex;flex-direction:column;gap:10px}
+.track{display:flex;align-items:center}
+.snode{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:118px}
+.sbox{padding:6px 12px;border-radius:7px;border:1.5px solid var(--bdr2);font-size:11px;font-weight:600;text-align:center;background:var(--surf2);color:var(--muted2);transition:all .3s;width:100%}
+.sbox.bull{border-color:var(--bull);color:var(--bull);background:var(--bull-d)}
+.sbox.bear{border-color:var(--bear);color:var(--bear);background:var(--bear-d)}
+.sbox.jc{border-color:var(--judge);color:var(--judge);background:var(--judge-d)}
+.sbox.running{animation:glow 1.4s infinite}
+.sbox.done{opacity:.6}
+.sbox.serr{border-color:var(--err)!important;color:var(--err)!important}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 currentColor}50%{box-shadow:0 0 10px 2px currentColor}}
+.slbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.sarr{width:32px;height:1.5px;background:var(--bdr2);flex-shrink:0;position:relative}
+.sarr::after{content:'';position:absolute;right:-4px;top:-3.5px;border:4px solid transparent;border-left-color:var(--bdr2)}
+.sarr.active{background:var(--accent)}.sarr.active::after{border-left-color:var(--accent)}
+.mblk{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 6px}
+.mline{width:1.5px;background:var(--bdr2)}.mline.active{background:var(--accent)}
+.mhorz{height:1.5px;width:24px;background:var(--bdr2);flex-shrink:0}.mhorz.active{background:var(--accent)}
 
-/* ── Log Stream ── */
-.log-wrap {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-  overflow: hidden; display: flex; flex-direction: column; flex: 1; min-height: 180px;
-}
-.log-header {
-  padding: 8px 14px; border-bottom: 1px solid var(--border);
-  font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
-  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-}
-.log-stream {
-  overflow-y: auto; padding: 10px 14px; flex: 1;
-  font-family: 'Menlo', 'Monaco', monospace; font-size: 11px; line-height: 1.8;
-}
-.log-line { display: flex; gap: 8px; }
-.lt { color: var(--muted); flex-shrink: 0; }
-.lm { word-break: break-word; }
-.lm.bull { color: var(--bull); }
-.lm.bear { color: var(--bear); }
-.lm.judge { color: var(--judge); }
-.lm.err { color: var(--danger); }
+/* Log stream */
+.log-wrap{background:var(--surf);border:1px solid var(--bdr);border-radius:11px;overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:160px}
+.log-hdr{padding:7px 13px;border-bottom:1px solid var(--bdr);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:flex;align-items:center;gap:7px;flex-shrink:0}
+.log-stream{overflow-y:auto;padding:9px 13px;flex:1;font-family:'Menlo','Monaco',monospace;font-size:11px;line-height:1.8}
+.ll{display:flex;gap:7px}
+.lt{color:var(--muted);flex-shrink:0}.lm{word-break:break-word}
+.lm.bull{color:var(--bull)}.lm.bear{color:var(--bear)}.lm.judge{color:var(--judge)}.lm.err{color:var(--err)}
 
-/* ── Cards ── */
-.card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-  overflow: hidden;
-}
-.card-head {
-  padding: 12px 18px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 10px;
-}
-.card-title { font-weight: 600; font-size: 13px; }
-.card-body { padding: 18px; }
+/* Pitch deck */
+.pd-hero{display:flex;align-items:center;gap:18px;background:var(--surf);border:1px solid var(--bdr);border-radius:11px;padding:18px 22px}
+.pd-ring{flex-shrink:0;width:76px;height:76px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px solid var(--bdr2);font-weight:800}
+.pd-ring.hi{border-color:var(--bull);color:var(--bull)}.pd-ring.mid{border-color:var(--judge);color:var(--judge)}.pd-ring.lo{border-color:var(--bear);color:var(--bear)}
+.pd-snum{font-size:24px;line-height:1}.pd-slbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:1px}
+.rec-ban{padding:6px 14px;border-radius:7px;font-size:12px;font-weight:700;letter-spacing:.8px;display:inline-block;margin-bottom:6px}
+.rec-ban.STRONG_FLAG{background:var(--bull-d);color:var(--bull);border:1px solid var(--bull)}
+.rec-ban.FLAG{background:var(--accent-d);color:#8fa0ff;border:1px solid var(--accent)}
+.rec-ban.WATCH_LIST{background:var(--judge-d);color:var(--judge);border:1px solid var(--judge)}
+.rec-ban.PASS{background:var(--bear-d);color:var(--bear);border:1px solid var(--bear)}
+.pd-verdict{font-size:13px;font-style:italic;color:var(--muted2);line-height:1.5}
+.pd-rat{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6}
+.sgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.sc{background:var(--surf);border:1px solid var(--bdr);border-radius:9px;padding:11px;text-align:center}
+.sc-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:5px}
+.sc-v{font-size:20px;font-weight:700}
+.sc-v.hi{color:var(--bull)}.sc-v.mid{color:var(--judge)}.sc-v.lo{color:var(--bear)}
+.sc-n{font-size:10px;color:var(--muted);margin-top:4px;text-align:left;line-height:1.4}
+.pdsec h4{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;font-weight:600}
+.pdsec p{font-size:12px;line-height:1.75;color:var(--muted2)}
+.pdsec.bc p{color:#5edf9a}.pdsec.rc p{color:#f07487}
+.risk-item{display:flex;gap:9px;align-items:flex-start;background:var(--surf2);border-radius:7px;padding:9px 11px;margin-bottom:5px}
+.sev{font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;white-space:nowrap;flex-shrink:0;margin-top:1px;letter-spacing:.5px}
+.sev.HIGH{background:var(--bear-d);color:var(--bear)}.sev.MEDIUM{background:var(--judge-d);color:var(--judge)}.sev.LOW{background:var(--bull-d);color:var(--bull)}
+.risk-t{font-size:12px;color:var(--muted2);line-height:1.5}
+.risk-m{font-size:10px;color:var(--muted);margin-top:2px}
+.blist{list-style:none}
+.blist li{padding:7px 10px;background:var(--surf2);border-radius:7px;margin-bottom:5px;font-size:12px;color:var(--muted2);line-height:1.5;border-left:3px solid var(--accent)}
+.nlist{list-style:none}
+.nlist li{padding:6px 10px;background:var(--surf2);border-radius:7px;margin-bottom:4px;font-size:12px;color:var(--muted2);line-height:1.5;display:flex;gap:7px;align-items:flex-start}
+.nlist li::before{content:'→';color:var(--accent);flex-shrink:0;font-weight:600}
+.adj-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.adj-col h5{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:7px}
+.adj-item{padding:6px 9px;border-radius:5px;font-size:11px;color:var(--muted2);line-height:1.5;margin-bottom:4px;border-left:2px solid}
+.adj-item.bi{background:var(--bull-d);border-color:var(--bull)}.adj-item.ri{background:var(--bear-d);border-color:var(--bear)}.adj-item.ui{background:var(--surf2);border-color:var(--bdr2)}
+.prec{padding:12px 16px;border-radius:9px;font-size:12px;line-height:1.6;border:1px solid var(--bdr2)}
+.prec.take{background:var(--bull-d);color:var(--bull);border-color:var(--bull)}.prec.monitor{background:var(--judge-d);color:var(--judge);border-color:var(--judge)}.prec.pass{background:var(--bear-d);color:var(--bear);border-color:var(--bear)}
 
-/* ── Side-by-side ── */
-.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+/* ── Discover tab ── */
+.disc-controls{background:var(--surf);border:1px solid var(--bdr);border-radius:11px;padding:16px 18px}
+.disc-row{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:end;margin-bottom:10px}
+.fld label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:5px}
+.fld input[type=text]{font-family:inherit}
+.disc-steps{display:flex;align-items:center;gap:0;margin:14px 0 0;flex-wrap:wrap}
+.dstep{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted2)}
+.dstep-dot{width:10px;height:10px;border-radius:50%;background:var(--bdr2);flex-shrink:0;transition:background .3s}
+.dstep-dot.running{background:var(--warn);animation:blink 1.2s infinite}
+.dstep-dot.done{background:var(--ok)}
+.dstep-dot.err{background:var(--err)}
+.dstep-lbl{transition:color .3s}
+.dstep-lbl.running{color:var(--warn)}.dstep-lbl.done{color:var(--ok)}.dstep-lbl.err{color:var(--err)}
+.dstep-arr{width:28px;height:1px;background:var(--bdr2);margin:0 6px;flex-shrink:0}
+.dstep-arr.active{background:var(--accent)}
 
-/* ── Markdown ── */
-.md { font-size: 12.5px; line-height: 1.8; color: var(--text); }
-.md h1 { font-size: 16px; margin: 0 0 10px; }
-.md h2 { font-size: 14px; color: var(--accent); margin: 14px 0 6px; }
-.md h3 { font-size: 13px; color: var(--muted2); margin: 10px 0 4px; }
-.md p { margin-bottom: 8px; }
-.md ul, .md ol { margin: 0 0 10px 18px; }
-.md li { margin-bottom: 3px; }
-.md strong { color: var(--text); font-weight: 600; }
-.md code { background: var(--surface2); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
-.md blockquote {
-  border-left: 3px solid var(--border2); padding-left: 12px; color: var(--muted2); margin: 8px 0;
-}
-.md table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 12px; }
-.md th { background: var(--surface2); padding: 6px 10px; border: 1px solid var(--border); text-align: left; }
-.md td { padding: 5px 10px; border: 1px solid var(--border); }
+.papers-grid{display:flex;flex-direction:column;gap:10px}
+.paper-card{background:var(--surf);border:1px solid var(--bdr);border-radius:11px;padding:14px 16px;transition:border-color .15s}
+.paper-card:hover{border-color:var(--bdr2)}
+.paper-card-top{display:flex;align-items:flex-start;gap:12px}
+.paper-rank{font-size:22px;font-weight:800;color:var(--bdr2);flex-shrink:0;min-width:28px;line-height:1}
+.paper-info{flex:1;min-width:0}
+.paper-title{font-size:13px;font-weight:600;line-height:1.4;margin-bottom:4px}
+.paper-title a{color:var(--text);text-decoration:none}.paper-title a:hover{color:var(--accent)}
+.paper-meta{font-size:11px;color:var(--muted);display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px}
+.paper-meta span{display:flex;align-items:center;gap:4px}
+.oa-badge{font-size:9px;background:var(--bull-d);color:var(--bull);border:1px solid var(--bull);border-radius:4px;padding:1px 5px;font-weight:600}
+.score-bar-wrap{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.score-val{font-size:18px;font-weight:800;min-width:40px;flex-shrink:0}
+.score-val.hi{color:var(--bull)}.score-val.mid{color:var(--judge)}.score-val.lo{color:var(--bear)}
+.score-bar{flex:1;height:6px;background:var(--surf2);border-radius:3px;overflow:hidden}
+.score-fill{height:100%;border-radius:3px;transition:width .4s}
+.score-fill.hi{background:var(--bull)}.score-fill.mid{background:var(--judge)}.score-fill.lo{background:var(--bear)}
+.feat-bars{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:8px}
+.feat-bar{display:flex;flex-direction:column;align-items:center;gap:2px}
+.feat-bar-track{width:100%;height:3px;background:var(--surf2);border-radius:2px}
+.feat-bar-fill{height:100%;border-radius:2px;background:var(--accent-d)}
+.feat-lbl{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.signals{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.signal-tag{font-size:10px;color:var(--bull);background:var(--bull-d);border-radius:4px;padding:2px 8px}
+.caveat-tag{font-size:10px;color:var(--warn);background:var(--judge-d);border-radius:4px;padding:2px 8px}
+.paper-abstract{font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.paper-actions{display:flex;gap:8px;align-items:center;margin-top:4px}
+.btn-analyze{padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-analyze:hover{filter:brightness(1.15)}
+.fulltext-badge{font-size:10px;color:var(--muted2);padding:4px 8px;border:1px solid var(--bdr);border-radius:5px}
 
-/* ── Pitch Deck ── */
-.pd-hero {
-  display: flex; align-items: center; gap: 20px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-  padding: 20px 24px;
-}
-.pd-score-ring {
-  flex-shrink: 0; width: 80px; height: 80px; border-radius: 50%;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  border: 3px solid var(--border2); font-weight: 800;
-}
-.pd-score-ring.high { border-color: var(--bull); color: var(--bull); }
-.pd-score-ring.medium { border-color: var(--judge); color: var(--judge); }
-.pd-score-ring.low { border-color: var(--bear); color: var(--bear); }
-.pd-score-num { font-size: 26px; line-height: 1; }
-.pd-score-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
-.pd-hero-right { flex: 1; }
-.rec-banner {
-  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700;
-  letter-spacing: 1px; display: inline-block; margin-bottom: 8px;
-}
-.rec-banner.STRONG_FLAG { background: var(--bull-dim); color: var(--bull); border: 1px solid var(--bull); }
-.rec-banner.FLAG { background: var(--accent-dim); color: #8fa0ff; border: 1px solid var(--accent); }
-.rec-banner.WATCH_LIST { background: var(--judge-dim); color: var(--judge); border: 1px solid var(--judge); }
-.rec-banner.PASS { background: var(--bear-dim); color: var(--bear); border: 1px solid var(--bear); }
-.pd-verdict { font-size: 13px; font-style: italic; color: var(--muted2); line-height: 1.5; }
-.pd-rationale { font-size: 12px; color: var(--muted2); margin-top: 8px; line-height: 1.6; }
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:3px}
 
-.score-grid {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
-}
-.sc {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-  padding: 12px; text-align: center;
-}
-.sc-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted); margin-bottom: 6px; }
-.sc-val { font-size: 22px; font-weight: 700; }
-.sc-val.high { color: var(--bull); }
-.sc-val.medium { color: var(--judge); }
-.sc-val.low { color: var(--bear); }
-.sc-note { font-size: 10px; color: var(--muted); margin-top: 5px; line-height: 1.4; text-align: left; }
-
-.pd-section { margin-bottom: 0; }
-.pd-section h4 {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
-  margin-bottom: 7px; font-weight: 600;
-}
-.pd-section p { font-size: 12.5px; line-height: 1.75; color: var(--muted2); }
-.pd-section.bull p { color: #5edf9a; }
-.pd-section.bear p { color: #f07487; }
-
-.risk-item {
-  display: flex; gap: 10px; align-items: flex-start;
-  background: var(--surface2); border-radius: 8px; padding: 10px 12px; margin-bottom: 6px;
-}
-.sev {
-  font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
-  white-space: nowrap; flex-shrink: 0; margin-top: 1px; letter-spacing: 0.5px;
-}
-.sev.HIGH { background: var(--bear-dim); color: var(--bear); }
-.sev.MEDIUM { background: var(--judge-dim); color: var(--judge); }
-.sev.LOW { background: var(--bull-dim); color: var(--bull); }
-.risk-text { font-size: 12px; color: var(--muted2); line-height: 1.5; }
-.risk-mit { font-size: 11px; color: var(--muted); margin-top: 3px; }
-
-.beliefs-list { list-style: none; }
-.beliefs-list li {
-  padding: 8px 12px; background: var(--surface2); border-radius: 8px;
-  margin-bottom: 6px; font-size: 12px; color: var(--muted2); line-height: 1.5;
-  border-left: 3px solid var(--accent);
-}
-.next-steps-list { list-style: none; }
-.next-steps-list li {
-  padding: 7px 12px; background: var(--surface2); border-radius: 8px;
-  margin-bottom: 5px; font-size: 12px; color: var(--muted2); line-height: 1.5;
-  display: flex; gap: 8px; align-items: flex-start;
-}
-.next-steps-list li::before { content: '→'; color: var(--accent); flex-shrink: 0; font-weight: 600; }
-
-.adj-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.adj-col h5 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; }
-.adj-item {
-  padding: 7px 10px; border-radius: 6px; font-size: 11px; color: var(--muted2);
-  line-height: 1.5; margin-bottom: 5px; border-left: 2px solid;
-}
-.adj-item.bull-item { background: var(--bull-dim); border-color: var(--bull); }
-.adj-item.bear-item { background: var(--bear-dim); border-color: var(--bear); }
-.adj-item.unresolved { background: var(--surface2); border-color: var(--border2); }
-
-.partner-rec {
-  padding: 14px 18px; border-radius: 10px; font-size: 13px; line-height: 1.6;
-  border: 1px solid var(--border2);
-}
-.partner-rec.take { background: var(--bull-dim); color: var(--bull); border-color: var(--bull); }
-.partner-rec.monitor { background: var(--judge-dim); color: var(--judge); border-color: var(--judge); }
-.partner-rec.pass { background: var(--bear-dim); color: var(--bear); border-color: var(--bear); }
-
-/* ── Scrollbar ── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-
-/* ── Empty state ── */
-.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; color: var(--muted); text-align: center; gap: 6px; }
-.empty .ei { font-size: 32px; opacity: 0.35; }
-.empty .el { font-size: 13px; font-weight: 500; }
-.empty .eh { font-size: 11px; }
+/* Empty */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 16px;color:var(--muted);text-align:center;gap:5px}
+.empty .ei{font-size:28px;opacity:.35}.empty .el{font-size:13px;font-weight:500}.empty .eh{font-size:11px}
 </style>
 </head>
 <body>
-<!-- Header -->
-<header class="header">
+<header class="hdr">
   <div class="logo"><em>Ventura</em> Flow</div>
-  <div class="pip-indicator">
-    <div class="pip-dot" id="pipDot"></div>
+  <div class="hdr-pip">
+    <div class="pip-d" id="pipDot"></div>
     <span id="pipLabel">Idle</span>
   </div>
-  <div class="header-spacer"></div>
-  <div class="header-status">Research Intelligence · Bull/Bear Pipeline · Judge Agent</div>
+  <div style="flex:1"></div>
+  <div style="font-size:11px;color:var(--muted)">Research Intelligence · Bull/Bear · Judge Agent</div>
 </header>
 
 <div class="layout">
   <!-- Sidebar -->
   <aside class="sidebar">
-    <div class="sidebar-block">
-      <h3>Paper Input</h3>
-      <textarea id="paperInput" placeholder='{"title": "...", "abstract": "..."}'></textarea>
+    <div class="sb-block">
+      <h3>Paper Input (for Bull/Bear)</h3>
+      <textarea id="paperInput" placeholder='Click "Analyze" from Discover tab to load a real paper with metadata and full text when available, or paste paper JSON manually'></textarea>
       <div class="btn-row">
-        <button class="btn btn-ghost" onclick="loadSample()">Load Sample</button>
-        <button class="btn btn-ghost" onclick="clearInput()">Clear</button>
+        <button class="btn btn-g" onclick="loadSample()">Load Sample</button>
+        <button class="btn btn-g" onclick="document.getElementById('paperInput').value=''">Clear</button>
       </div>
     </div>
-    <div class="sidebar-block">
-      <h3>Options</h3>
+    <div class="sb-block">
+      <h3>Pipeline Options</h3>
       <div class="opt-row">
         <input type="checkbox" id="noSearch">
-        <label for="noSearch">Skip web search (faster, no DDG)</label>
+        <label for="noSearch">Skip web search (no DDG)</label>
       </div>
-      <select id="agentSel" style="margin-bottom:10px">
+      <select id="agentSel" style="margin-bottom:9px">
         <option value="both">Both branches (Bull + Bear)</option>
-        <option value="bull">Bull branch only</option>
-        <option value="bear">Bear branch only</option>
+        <option value="bull">Bull only</option>
+        <option value="bear">Bear only</option>
       </select>
-      <button class="btn btn-primary" id="runBtn" onclick="startRun()">▶ Run Full Pipeline</button>
-    </div>
-    <div class="sidebar-history">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:10px;font-weight:600;">Run History</div>
-      <div id="historyList">
-        <div class="empty" style="padding:16px 0"><div class="eh">No runs yet</div></div>
+      <div class="sb-block" style="border:none;padding:0;margin-bottom:8px">
+        <h3 style="margin-bottom:6px">VC Investment Profile</h3>
+        <textarea id="vcProfile" style="min-height:60px;font-family:inherit;font-size:12px" placeholder="e.g. Deep tech, biotech, pre-seed to Series A. Focus on defensible IP and 10+ year returns."></textarea>
       </div>
+      <button class="btn btn-p" id="runBtn" onclick="startRun()">▶ Run Bull/Bear Pipeline</button>
+    </div>
+    <div class="sb-hist">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:8px;font-weight:600">Run History</div>
+      <div id="histList"><div class="empty" style="padding:12px 0"><div class="eh">No runs yet</div></div></div>
     </div>
   </aside>
 
   <!-- Main -->
   <main class="main">
     <nav class="tabs">
-      <div class="tab active" id="tab-pipeline" onclick="switchTab('pipeline')">Pipeline</div>
+      <div class="tab active" id="tab-discover" onclick="switchTab('discover')">Discover Papers</div>
+      <div class="tab" id="tab-pipeline" onclick="switchTab('pipeline')">Pipeline</div>
       <div class="tab" id="tab-research" onclick="switchTab('research')">
         Research <span class="badge" id="b-research">2</span>
       </div>
@@ -432,70 +296,107 @@ select { font-family: inherit; font-size: 12px; cursor: pointer; }
     </nav>
 
     <div class="content">
+
+      <!-- ── Discover Panel ── -->
+      <div class="panel active" id="panel-discover">
+        <div class="disc-controls">
+          <div class="disc-row">
+            <div class="fld" style="grid-column:1">
+              <label>Research Query</label>
+              <input type="text" id="discQuery" placeholder="e.g. solid-state battery electrolytes" style="font-family:inherit">
+            </div>
+            <div class="fld">
+              <label>Papers</label>
+              <select id="discLimit">
+                <option value="10">10</option>
+                <option value="20" selected>20</option>
+                <option value="30">30</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+            <div class="fld">
+              <label>Min Score</label>
+              <select id="discThresh">
+                <option value="0.4">0.40</option>
+                <option value="0.5" selected>0.50</option>
+                <option value="0.55">0.55</option>
+                <option value="0.65">0.65</option>
+              </select>
+            </div>
+            <div class="fld">
+              <label>Recent Years</label>
+              <select id="discYears">
+                <option value="">Any year</option>
+                <option value="1">Last 1 yr</option>
+                <option value="2" selected>Last 2 yrs</option>
+                <option value="3">Last 3 yrs</option>
+                <option value="5">Last 5 yrs</option>
+              </select>
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:0;max-width:430px">
+            <button class="btn btn-p" id="discBtn" onclick="startDiscover(false)">🔍 Discover Papers</button>
+            <button class="btn btn-g" id="discRunTopBtn" onclick="startDiscover(true)">⚡ Discover + Analyze Top Paper</button>
+          </div>
+          <div class="disc-steps" id="discSteps">
+            <div class="dstep"><div class="dstep-dot" id="ds-ingest"></div><span class="dstep-lbl" id="dl-ingest">Fetch from APIs</span></div>
+            <div class="dstep-arr" id="da-1"></div>
+            <div class="dstep"><div class="dstep-dot" id="ds-embed"></div><span class="dstep-lbl" id="dl-embed">Embed</span></div>
+            <div class="dstep-arr" id="da-2"></div>
+            <div class="dstep"><div class="dstep-dot" id="ds-rank"></div><span class="dstep-lbl" id="dl-rank">VC Score & Rank</span></div>
+          </div>
+          <div id="discStatus" style="font-size:11px;color:var(--muted);margin-top:8px"></div>
+        </div>
+
+        <div id="papersRoot">
+          <div class="empty">
+            <div class="ei">🔬</div>
+            <div class="el">No papers yet</div>
+            <div class="eh">Enter a research topic and click Discover Papers to fetch and rank real papers from Semantic Scholar and OpenAlex</div>
+          </div>
+        </div>
+      </div>
+
       <!-- ── Pipeline Panel ── -->
-      <div class="panel active" id="panel-pipeline">
-        <!-- Stage visualizer -->
+      <div class="panel" id="panel-pipeline">
         <div class="viz-wrap">
-          <div class="viz-title">Pipeline Stages</div>
-          <div class="pipeline-flow" id="pipeViz">
-            <!-- Bull track -->
+          <div class="viz-label">Pipeline Stages</div>
+          <div class="pflow">
             <div class="tracks">
               <div class="track">
-                <div class="snode">
-                  <div class="sbox" id="sn-research-bull">Bull Researcher</div>
-                  <div class="slabel">qwen3:8b</div>
-                </div>
-                <div class="sarrow" id="ar-rb-ba"></div>
-                <div class="snode">
-                  <div class="sbox" id="sn-analysis-bull">Bull Analyst</div>
-                  <div class="slabel">deepseek-r1:14b</div>
-                </div>
+                <div class="snode"><div class="sbox" id="sn-research-bull">Bull Researcher</div><div class="slbl">qwen3:8b</div></div>
+                <div class="sarr" id="ar-rb"></div>
+                <div class="snode"><div class="sbox" id="sn-analysis-bull">Bull Analyst</div><div class="slbl">deepseek-r1:14b</div></div>
               </div>
               <div class="track">
-                <div class="snode">
-                  <div class="sbox" id="sn-research-bear">Bear Researcher</div>
-                  <div class="slabel">qwen3:8b</div>
-                </div>
-                <div class="sarrow" id="ar-rr-ba"></div>
-                <div class="snode">
-                  <div class="sbox" id="sn-analysis-bear">Bear Analyst</div>
-                  <div class="slabel">deepseek-r1:14b</div>
-                </div>
+                <div class="snode"><div class="sbox" id="sn-research-bear">Bear Researcher</div><div class="slbl">qwen3:8b</div></div>
+                <div class="sarr" id="ar-rb2"></div>
+                <div class="snode"><div class="sbox" id="sn-analysis-bear">Bear Analyst</div><div class="slbl">deepseek-r1:14b</div></div>
               </div>
             </div>
-            <!-- Merge -->
-            <div class="merge-block">
-              <div class="merge-line" id="ml-top" style="height:32px"></div>
-              <div class="merge-horiz" id="mh"></div>
-              <div class="merge-line" id="ml-bot" style="height:32px"></div>
+            <div class="mblk">
+              <div class="mline" id="ml-t" style="height:30px"></div>
+              <div class="mhorz" id="mh"></div>
+              <div class="mline" id="ml-b" style="height:30px"></div>
             </div>
-            <!-- Judge + Pitch Deck -->
             <div class="tracks" style="gap:0">
               <div class="track" style="justify-content:center">
-                <div class="snode">
-                  <div class="sbox" id="sn-judge">Judge Agent</div>
-                  <div class="slabel">llama3.1:8b</div>
-                </div>
-                <div class="sarrow" id="ar-j-pd"></div>
-                <div class="snode">
-                  <div class="sbox" id="sn-pitchdeck">Pitch Deck</div>
-                  <div class="slabel">output</div>
-                </div>
+                <div class="snode"><div class="sbox" id="sn-judge">Judge Agent</div><div class="slbl">llama3.1:8b</div></div>
+                <div class="sarr" id="ar-j"></div>
+                <div class="snode"><div class="sbox" id="sn-pitchdeck">Pitch Deck</div><div class="slbl">output</div></div>
               </div>
             </div>
           </div>
         </div>
-
-        <!-- Log stream -->
         <div class="log-wrap">
-          <div class="log-header">
-            <div class="pip-dot" id="logDot"></div>
+          <div class="log-hdr">
+            <div class="pip-d" id="logDot"></div>
             Live Logs
             <div style="flex:1"></div>
             <span style="cursor:pointer;font-size:10px;color:var(--muted)" onclick="clearLogs()">Clear</span>
           </div>
           <div class="log-stream" id="logStream">
-            <div class="log-line"><span class="lt">--:--:--</span><span class="lm" style="color:var(--muted)">Waiting for pipeline run...</span></div>
+            <div class="ll"><span class="lt">--:--:--</span><span class="lm" style="color:var(--muted)">Waiting for pipeline run...</span></div>
           </div>
         </div>
       </div>
@@ -504,24 +405,22 @@ select { font-family: inherit; font-size: 12px; cursor: pointer; }
       <div class="panel" id="panel-research">
         <div class="two-col">
           <div class="card">
-            <div class="card-head">
-              <span style="color:var(--bull);font-size:14px">▲</span>
-              <div class="card-title" style="color:var(--bull)">Bull Research Brief</div>
-            </div>
+            <div class="card-h"><span style="color:var(--bull);font-size:13px">▲</span><div class="card-title" style="color:var(--bull)">Bull Research Brief</div></div>
             <div class="card-body">
-              <div class="md" id="bullBrief">
-                <div class="empty"><div class="ei">🔍</div><div class="eh">Run the pipeline to see the Bull research brief</div></div>
+              <div class="md" id="bullBrief"><div class="empty"><div class="ei">🔍</div><div class="eh">Run the pipeline to see the Bull research brief with cited sources</div></div></div>
+              <div class="sources-wrap" id="bullSources" style="display:none">
+                <div class="sources-toggle" onclick="toggleSources('bull')">▶ Key Sources cited in brief</div>
+                <div class="sources-list" id="bullSourcesList" style="display:none"></div>
               </div>
             </div>
           </div>
           <div class="card">
-            <div class="card-head">
-              <span style="color:var(--bear);font-size:14px">▼</span>
-              <div class="card-title" style="color:var(--bear)">Bear Research Brief</div>
-            </div>
+            <div class="card-h"><span style="color:var(--bear);font-size:13px">▼</span><div class="card-title" style="color:var(--bear)">Bear Research Brief</div></div>
             <div class="card-body">
-              <div class="md" id="bearBrief">
-                <div class="empty"><div class="ei">🔍</div><div class="eh">Run the pipeline to see the Bear research brief</div></div>
+              <div class="md" id="bearBrief"><div class="empty"><div class="ei">🔍</div><div class="eh">Run the pipeline to see the Bear research brief with cited sources</div></div></div>
+              <div class="sources-wrap" id="bearSources" style="display:none">
+                <div class="sources-toggle" onclick="toggleSources('bear')">▶ Key Sources cited in brief</div>
+                <div class="sources-list" id="bearSourcesList" style="display:none"></div>
               </div>
             </div>
           </div>
@@ -532,24 +431,22 @@ select { font-family: inherit; font-size: 12px; cursor: pointer; }
       <div class="panel" id="panel-analysis">
         <div class="two-col">
           <div class="card">
-            <div class="card-head">
-              <span style="color:var(--bull);font-size:14px">▲</span>
-              <div class="card-title" style="color:var(--bull)">Bull Investment Thesis</div>
-            </div>
+            <div class="card-h"><span style="color:var(--bull);font-size:13px">▲</span><div class="card-title" style="color:var(--bull)">Bull Investment Thesis</div></div>
             <div class="card-body">
-              <div class="md" id="bullThesis">
-                <div class="empty"><div class="ei">📈</div><div class="eh">Run the pipeline to see the Bull thesis</div></div>
+              <div class="md" id="bullThesis"><div class="empty"><div class="ei">📈</div><div class="eh">Waiting for Bull Analyst...</div></div></div>
+              <div class="sources-wrap" id="bullThesisSources" style="display:none">
+                <div class="sources-toggle" onclick="toggleSources('bullThesis')">▶ Sources cited in thesis</div>
+                <div class="sources-list" id="bullThesisSourcesList" style="display:none"></div>
               </div>
             </div>
           </div>
           <div class="card">
-            <div class="card-head">
-              <span style="color:var(--bear);font-size:14px">▼</span>
-              <div class="card-title" style="color:var(--bear)">Bear Critique</div>
-            </div>
+            <div class="card-h"><span style="color:var(--bear);font-size:13px">▼</span><div class="card-title" style="color:var(--bear)">Bear Critique</div></div>
             <div class="card-body">
-              <div class="md" id="bearCritique">
-                <div class="empty"><div class="ei">📉</div><div class="eh">Run the pipeline to see the Bear critique</div></div>
+              <div class="md" id="bearCritique"><div class="empty"><div class="ei">📉</div><div class="eh">Waiting for Bear Analyst...</div></div></div>
+              <div class="sources-wrap" id="bearCritiqueSources" style="display:none">
+                <div class="sources-toggle" onclick="toggleSources('bearCritique')">▶ Sources cited in critique</div>
+                <div class="sources-list" id="bearCritiqueSourcesList" style="display:none"></div>
               </div>
             </div>
           </div>
@@ -558,115 +455,85 @@ select { font-family: inherit; font-size: 12px; cursor: pointer; }
 
       <!-- ── Pitch Deck Panel ── -->
       <div class="panel" id="panel-pitchdeck">
-        <div id="pitchDeckRoot">
-          <div class="empty" style="padding:80px 0">
+        <div id="pdRoot">
+          <div class="empty" style="padding:70px 0">
             <div class="ei">📋</div>
             <div class="el">Pitch Deck Not Ready</div>
             <div class="eh">Run the full pipeline (both branches) to generate the VC-grade investment memo</div>
           </div>
         </div>
       </div>
-    </div>
+
+    </div><!-- content -->
   </main>
 </div>
 
 <script>
-// ── State ─────────────────────────────────────────────────────────────────────
-let currentRunId = null;
-let es = null;
+// ── State ──────────────────────────────────────────────────────────────────────
+let currentRunId = null, discRunId = null, es = null, discEs = null;
+let autoAnalyzeTopPaper = false;
 const stageState = {};
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
-function switchTab(name) {
+function switchTab(n) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.add('active');
-  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('tab-' + n).classList.add('active');
+  document.getElementById('panel-' + n).classList.add('active');
 }
 
-// ── Badge helpers ─────────────────────────────────────────────────────────────
-function showBadge(name) {
-  document.getElementById('b-' + name).classList.add('show');
-}
-function hideBadge(name) {
-  document.getElementById('b-' + name).classList.remove('show');
-}
+function showBadge(n) { document.getElementById('b-' + n).classList.add('show'); }
 
-// ── Load sample ───────────────────────────────────────────────────────────────
-async function loadSample() {
-  try {
-    const r = await fetch('/api/sample');
-    const data = await r.json();
-    document.getElementById('paperInput').value = JSON.stringify(data, null, 2);
-  } catch (e) {
-    alert('Could not load sample_input.json');
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function scClass(v) { return v>=65?'hi':v>=40?'mid':'lo'; }
+function scClassFrac(v) { return v>=0.65?'hi':v>=0.4?'mid':'lo'; }
+function stripThink(t) { return t.replace(/<think>[\s\S]*?<\/think>/gi,'').trim(); }
+
+// ── Extract URLs from markdown text ──────────────────────────────────────────
+function extractSources(mdText) {
+  const urls = [];
+  const seen = new Set();
+  // Match [text](url) and bare http URLs
+  const re1 = /\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
+  const re2 = /(?<!\()https?:\/\/[^\s)\]>,"]+/g;
+  let m;
+  while ((m = re1.exec(mdText)) !== null) {
+    if (!seen.has(m[2])) { seen.add(m[2]); urls.push({text: m[1], url: m[2]}); }
   }
-}
-
-function clearInput() {
-  document.getElementById('paperInput').value = '';
-}
-
-// ── Logs ──────────────────────────────────────────────────────────────────────
-function addLog(msg, ts, side) {
-  const stream = document.getElementById('logStream');
-  const div = document.createElement('div');
-  div.className = 'log-line';
-  const cls = side ? ` ${side}` : '';
-  div.innerHTML = `<span class="lt">${ts||'--:--:--'}</span><span class="lm${cls}">${escHtml(msg)}</span>`;
-  stream.appendChild(div);
-  stream.scrollTop = stream.scrollHeight;
-}
-
-function clearLogs() {
-  document.getElementById('logStream').innerHTML = '';
-}
-
-// ── Stage nodes ───────────────────────────────────────────────────────────────
-function setStage(stage, side, status) {
-  const key = `${stage}-${side}`;
-  stageState[key] = status;
-  const nodeId = `sn-${stage}-${side === 'both' ? 'judge' : side}`;
-  const el = document.getElementById(nodeId) || document.getElementById(`sn-${stage}`);
-  if (!el) return;
-  el.classList.remove('running', 'done', 'error', 'bull', 'bear', 'judge-c');
-  if (status === 'running') {
-    el.classList.add('running');
-    if (side === 'bull') el.classList.add('bull');
-    else if (side === 'bear') el.classList.add('bear');
-    else el.classList.add('judge-c');
-  } else if (status === 'complete') {
-    el.classList.add('done');
-    if (side === 'bull') el.classList.add('bull');
-    else if (side === 'bear') el.classList.add('bear');
-    else el.classList.add('judge-c');
-    // Light up next arrow
-    const arrowMap = {
-      'research-bull': 'ar-rb-ba', 'analysis-bull': null,
-      'research-bear': 'ar-rr-ba', 'analysis-bear': null,
-      'judge-both': 'ar-j-pd',
-    };
-    const arId = arrowMap[key];
-    if (arId) {
-      const ar = document.getElementById(arId);
-      if (ar) ar.classList.add('active');
-    }
-    // Light up merge lines when both analysts done
-    if (stage === 'analysis') {
-      const bullDone = stageState['analysis-bull'] === 'complete';
-      const bearDone = stageState['analysis-bear'] === 'complete';
-      if (bullDone) document.getElementById('ml-top')?.classList.add('active');
-      if (bearDone) document.getElementById('ml-bot')?.classList.add('active');
-      if (bullDone && bearDone) document.getElementById('mh')?.classList.add('active');
-    }
-  } else if (status === 'error') {
-    el.classList.add('error');
+  while ((m = re2.exec(mdText)) !== null) {
+    if (!seen.has(m[0])) { seen.add(m[0]); urls.push({text: m[0], url: m[0]}); }
   }
+  return urls;
 }
 
-// ── Strip <think> tags (deepseek-r1, qwen3) ──────────────────────────────────
-function stripThink(text) {
-  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+function renderSources(side, mdText) {
+  const urls = extractSources(mdText);
+  const wrap = document.getElementById(side + 'Sources');
+  const list = document.getElementById(side + 'SourcesList');
+  if (!wrap || !list) return;
+  if (!urls.length) {
+    wrap.style.display = 'none';
+    list.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  wrap.style.display = 'block';
+  list.style.display = 'none';
+  list.innerHTML = urls.map((u, i) => `
+    <div class="source-item">
+      <span class="source-num">${i + 1}</span>
+      <a class="source-link" href="${esc(u.url)}" target="_blank" rel="noopener">${esc(u.text || u.url)}</a>
+    </div>`).join('');
+}
+
+function toggleSources(side) {
+  const list = document.getElementById(side + 'SourcesList');
+  const toggle = document.querySelector(`#${side}Sources .sources-toggle`);
+  if (!list) return;
+  const open = list.style.display !== 'none';
+  list.style.display = open ? 'none' : 'flex';
+  toggle.textContent = (open ? '▶' : '▼') + ' Key Sources cited in brief';
 }
 
 // ── Markdown render ───────────────────────────────────────────────────────────
@@ -676,333 +543,436 @@ function renderMd(elId, text) {
   el.innerHTML = marked.parse(stripThink(text));
 }
 
-// ── HTML escape ───────────────────────────────────────────────────────────────
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// ── Logs ──────────────────────────────────────────────────────────────────────
+function addLog(msg, ts, side) {
+  const s = document.getElementById('logStream');
+  const d = document.createElement('div');
+  d.className = 'll';
+  d.innerHTML = `<span class="lt">${esc(ts||'--:--:--')}</span><span class="lm ${side||''}">${esc(msg)}</span>`;
+  s.appendChild(d);
+  s.scrollTop = s.scrollHeight;
+}
+function clearLogs() { document.getElementById('logStream').innerHTML = ''; }
+
+// ── Pipeline header status ────────────────────────────────────────────────────
+function setPipStatus(st) {
+  const d = document.getElementById('pipDot');
+  const ld = document.getElementById('logDot');
+  const l = document.getElementById('pipLabel');
+  d.className = ld.className = 'pip-d ' + st;
+  l.textContent = st==='active'?'Running':st==='done'?'Complete':st==='err'?'Error':'Idle';
 }
 
-// ── Score class ───────────────────────────────────────────────────────────────
-function scoreClass(v) {
-  if (v >= 65) return 'high';
-  if (v >= 40) return 'medium';
-  return 'low';
+// ── Stage nodes ───────────────────────────────────────────────────────────────
+function setStage(stage, side, status) {
+  const key = `${stage}-${side}`;
+  stageState[key] = status;
+  const ids = {
+    'research-bull': 'sn-research-bull', 'research-bear': 'sn-research-bear',
+    'analysis-bull': 'sn-analysis-bull', 'analysis-bear': 'sn-analysis-bear',
+    'judge-both': 'sn-judge',
+  };
+  const el = document.getElementById(ids[key]);
+  if (!el) return;
+  el.className = 'sbox';
+  const colorCls = side==='bull'?'bull':side==='bear'?'bear':'jc';
+  if (status === 'running') el.classList.add(colorCls, 'running');
+  else if (status === 'complete') { el.classList.add(colorCls, 'done'); activateArrow(stage, side); }
+  else if (status === 'error') el.classList.add('serr');
 }
 
-// ── Pitch deck renderer ───────────────────────────────────────────────────────
-function renderPitchDeck(judgeEval, pitchDeck) {
-  if (!judgeEval) return;
-  const score = judgeEval.investability_score || 0;
-  const rec = judgeEval.recommendation || 'WATCH_LIST';
-  const sc = scoreClass(score);
-
-  const scores = [
-    { label: 'Commercial', val: judgeEval.commercial_viability, note: judgeEval.commercial_viability_rationale },
-    { label: 'Team Signal', val: judgeEval.team_signal_strength, note: judgeEval.team_signal_rationale },
-    { label: 'Timing', val: judgeEval.timing_and_market, note: judgeEval.timing_rationale },
-    { label: 'Moat', val: judgeEval.competitive_moat, note: judgeEval.moat_rationale },
-    { label: 'Conviction', val: judgeEval.risk_adjusted_conviction, note: judgeEval.risk_conviction_rationale },
-  ];
-
-  const adj = judgeEval.bull_vs_bear_adjudication || {};
-
-  let html = `
-  <div class="pd-hero">
-    <div class="pd-score-ring ${sc}">
-      <div class="pd-score-num">${score}</div>
-      <div class="pd-score-label">/ 100</div>
-    </div>
-    <div class="pd-hero-right">
-      <div class="rec-banner ${rec}">${rec.replace(/_/g,' ')}</div>
-      <div class="pd-verdict">"${escHtml(judgeEval.one_line_verdict || '')}"</div>
-      <div class="pd-rationale">${escHtml(judgeEval.investability_rationale || '')}</div>
-    </div>
-  </div>
-
-  <div class="score-grid">
-    ${scores.map(s => `
-    <div class="sc">
-      <div class="sc-label">${s.label}</div>
-      <div class="sc-val ${scoreClass(s.val||0)}">${s.val ?? '—'}</div>
-      <div class="sc-note">${escHtml((s.note||'').slice(0,120))}${(s.note||'').length>120?'…':''}</div>
-    </div>`).join('')}
-  </div>`;
-
-  if (pitchDeck && pitchDeck.memo_title) {
-    const pd = pitchDeck;
-    const partnerRec = (pd.partner_meeting_recommendation || '').toLowerCase();
-    const prClass = partnerRec.includes('take') ? 'take' : partnerRec.includes('monitor') ? 'monitor' : 'pass';
-
-    html += `
-  <div class="card">
-    <div class="card-head">
-      <div class="card-title">${escHtml(pd.memo_title || 'Investment Memo')}</div>
-      <div style="flex:1"></div>
-      <div style="font-size:11px;color:var(--muted)">${pd.memo_date || ''}</div>
-    </div>
-    <div class="card-body" style="display:flex;flex-direction:column;gap:18px">
-
-      ${memoSec('Executive Summary', pd.executive_summary)}
-      ${memoSec('The Opportunity', pd.the_opportunity)}
-      ${memoSec('Technology Differentiation', pd.technology_differentiation)}
-      ${memoSec('Team Assessment', pd.team_assessment)}
-      ${memoSec('Market Landscape', pd.market_landscape)}
-
-      <div class="two-col">
-        <div class="pd-section bull"><h4>Bull Case</h4><p>${escHtml(pd.bull_case_narrative||'')}</p></div>
-        <div class="pd-section bear"><h4>Bear Case</h4><p>${escHtml(pd.bear_case_narrative||'')}</p></div>
-      </div>
-
-      ${renderRisks(pd.key_risks_ranked)}
-      ${renderBeliefs(pd.what_we_need_to_believe)}
-      ${renderNextSteps(pd.suggested_next_steps)}
-      ${renderAdjudication(adj)}
-      ${memoSec('Comparable Transactions', pd.comparable_transactions)}
-
-      <div>
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;font-weight:600;">Partner Meeting Recommendation</div>
-        <div class="partner-rec ${prClass}">${escHtml(pd.partner_meeting_recommendation||'')}</div>
-      </div>
-    </div>
-  </div>`;
+function activateArrow(stage, side) {
+  const map = {'research-bull':'ar-rb','research-bear':'ar-rb2','judge-both':'ar-j'};
+  const ar = document.getElementById(map[`${stage}-${side}`]);
+  if (ar) ar.classList.add('active');
+  if (stage === 'analysis') {
+    const bt = stageState['analysis-bull']==='complete';
+    const br = stageState['analysis-bear']==='complete';
+    if (bt) document.getElementById('ml-t')?.classList.add('active');
+    if (br) document.getElementById('ml-b')?.classList.add('active');
+    if (bt && br) document.getElementById('mh')?.classList.add('active');
   }
-
-  document.getElementById('pitchDeckRoot').innerHTML = html;
 }
 
-function memoSec(title, text) {
-  if (!text) return '';
-  return `<div class="pd-section"><h4>${title}</h4><p>${escHtml(text)}</p></div>`;
+// ── Sample / history ──────────────────────────────────────────────────────────
+async function loadSample() {
+  const r = await fetch('/api/sample');
+  const d = await r.json();
+  document.getElementById('paperInput').value = JSON.stringify(d, null, 2);
 }
 
-function renderRisks(risks) {
-  if (!risks || !risks.length) return '';
-  return `
-  <div>
-    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;font-weight:600;">Key Risks</div>
-    ${risks.map(r => `
-    <div class="risk-item">
-      <span class="sev ${r.severity||'MEDIUM'}">${r.severity||'?'}</span>
-      <div>
-        <div class="risk-text">${escHtml(r.risk||'')}</div>
-        ${r.mitigatable && r.mitigation_path ? `<div class="risk-mit">Mitigation: ${escHtml(r.mitigation_path)}</div>` : ''}
-      </div>
-    </div>`).join('')}
-  </div>`;
-}
-
-function renderBeliefs(beliefs) {
-  if (!beliefs || !beliefs.length) return '';
-  return `
-  <div>
-    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;font-weight:600;">What We Need to Believe</div>
-    <ul class="beliefs-list">${beliefs.map(b => `<li>${escHtml(b)}</li>`).join('')}</ul>
-  </div>`;
-}
-
-function renderNextSteps(steps) {
-  if (!steps || !steps.length) return '';
-  return `
-  <div>
-    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;font-weight:600;">Suggested Next Steps</div>
-    <ul class="next-steps-list">${steps.map(s => `<li>${escHtml(s)}</li>`).join('')}</ul>
-  </div>`;
-}
-
-function renderAdjudication(adj) {
-  if (!adj || (!adj.bull_prevailed_on?.length && !adj.bear_prevailed_on?.length)) return '';
-  return `
-  <div>
-    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;font-weight:600;">Bull vs Bear Adjudication</div>
-    <div class="adj-grid">
-      <div class="adj-col">
-        <h5>Bull Prevailed On</h5>
-        ${(adj.bull_prevailed_on||[]).map(p=>`<div class="adj-item bull-item">${escHtml(p)}</div>`).join('')}
-      </div>
-      <div class="adj-col">
-        <h5>Bear Prevailed On</h5>
-        ${(adj.bear_prevailed_on||[]).map(p=>`<div class="adj-item bear-item">${escHtml(p)}</div>`).join('')}
-      </div>
-    </div>
-    ${(adj.unresolved_tensions||[]).length ? `
-    <div style="margin-top:10px">
-      <h5 style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;font-weight:600;">Unresolved Tensions</h5>
-      ${(adj.unresolved_tensions||[]).map(p=>`<div class="adj-item unresolved">${escHtml(p)}</div>`).join('')}
-    </div>` : ''}
-  </div>`;
-}
-
-// ── Pipeline header indicators ────────────────────────────────────────────────
-function setPipStatus(status) {
-  const dot = document.getElementById('pipDot');
-  const label = document.getElementById('pipLabel');
-  const logDot = document.getElementById('logDot');
-  dot.className = 'pip-dot ' + status;
-  logDot.className = 'pip-dot ' + status;
-  label.textContent = status === 'active' ? 'Running' : status === 'done' ? 'Complete' : status === 'error' ? 'Error' : 'Idle';
-}
-
-// ── History ───────────────────────────────────────────────────────────────────
 function refreshHistory() {
   fetch('/api/runs').then(r=>r.json()).then(runs => {
-    const list = document.getElementById('historyList');
-    if (!runs.length) {
-      list.innerHTML = '<div class="empty" style="padding:16px 0"><div class="eh">No runs yet</div></div>';
-      return;
-    }
-    list.innerHTML = runs.map(r => `
-    <div class="run-item ${r.run_id === currentRunId ? 'active' : ''}" onclick="loadRun('${r.run_id}')">
-      <div class="run-title">${escHtml(r.title||'Untitled')}</div>
-      <div class="run-meta">
-        <div class="status-dot ${r.status}"></div>
-        ${r.status} · ${r.run_id}
-      </div>
+    const el = document.getElementById('histList');
+    if (!runs.length) { el.innerHTML = '<div class="empty" style="padding:10px 0"><div class="eh">No runs yet</div></div>'; return; }
+    el.innerHTML = runs.map(r=>`
+    <div class="run-item ${r.run_id===currentRunId?'active':''}" onclick="loadRun('${r.run_id}')">
+      <div class="run-title">${esc(r.title)}</div>
+      <div class="run-meta"><div class="sdot ${r.status}"></div>${r.status} · ${r.run_id}</div>
     </div>`).join('');
   });
 }
 
-async function loadRun(runId) {
-  currentRunId = runId;
-  refreshHistory();
-  // Load saved outputs from disk
-  try {
-    const r = await fetch(`/api/outputs/${runId}`);
-    const data = await r.json();
-    if (data.bull_brief) { renderMd('bullBrief', data.bull_brief); showBadge('research'); }
-    if (data.bear_brief) { renderMd('bearBrief', data.bear_brief); showBadge('research'); }
-    if (data.bull_thesis) { renderMd('bullThesis', data.bull_thesis); showBadge('analysis'); }
-    if (data.bear_critique) { renderMd('bearCritique', data.bear_critique); showBadge('analysis'); }
-    if (data.judge_eval || data.pitch_deck) {
-      renderPitchDeck(data.judge_eval, data.pitch_deck);
-      showBadge('pitchdeck');
-    }
-  } catch(e) { console.warn('Could not load run outputs', e); }
+async function loadRun(id) {
+  currentRunId = id; refreshHistory();
+  const d = await fetch(`/api/outputs/${id}`).then(r=>r.json()).catch(()=>({}));
+  if (d.bull_brief) { renderMd('bullBrief', d.bull_brief); renderSources('bull', d.bull_brief); showBadge('research'); }
+  if (d.bear_brief) { renderMd('bearBrief', d.bear_brief); renderSources('bear', d.bear_brief); showBadge('research'); }
+  if (d.bull_thesis) { renderMd('bullThesis', d.bull_thesis); renderSources('bullThesis', d.bull_thesis); showBadge('analysis'); }
+  if (d.bear_critique) { renderMd('bearCritique', d.bear_critique); renderSources('bearCritique', d.bear_critique); showBadge('analysis'); }
+  if (d.judge_eval || d.pitch_deck) { renderPitchDeck(d.judge_eval, d.pitch_deck); showBadge('pitchdeck'); }
 }
 
-// ── Start run ─────────────────────────────────────────────────────────────────
+// ── Bull/Bear pipeline ────────────────────────────────────────────────────────
 async function startRun() {
   const raw = document.getElementById('paperInput').value.trim();
-  if (!raw) { alert('Paste a paper JSON first (or click Load Sample)'); return; }
+  if (!raw) { alert('Paste a paper JSON first, or click Analyze from the Discover tab.'); return; }
   let paper;
-  try { paper = JSON.parse(raw); }
-  catch(e) { alert('Invalid JSON: ' + e.message); return; }
+  try { paper = JSON.parse(raw); } catch(e) { alert('Invalid JSON: ' + e.message); return; }
 
   const noSearch = document.getElementById('noSearch').checked;
   const agent = document.getElementById('agentSel').value;
+  const vcProfile = document.getElementById('vcProfile').value.trim();
 
-  // Reset UI
   clearLogs();
-  ['research','analysis','pitchdeck'].forEach(hideBadge);
+  ['research','analysis','pitchdeck'].forEach(n => document.getElementById('b-'+n).classList.remove('show'));
   ['sn-research-bull','sn-research-bear','sn-analysis-bull','sn-analysis-bear','sn-judge','sn-pitchdeck']
-    .forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.className = 'sbox';
-    });
-  ['ar-rb-ba','ar-rr-ba','ar-j-pd','ml-top','ml-bot','mh'].forEach(id => {
-    document.getElementById(id)?.classList.remove('active');
-  });
+    .forEach(id => { const el=document.getElementById(id); if(el) el.className='sbox'; });
+  ['ar-rb','ar-rb2','ar-j','ml-t','ml-b','mh'].forEach(id => document.getElementById(id)?.classList.remove('active'));
   Object.keys(stageState).forEach(k => delete stageState[k]);
   document.getElementById('runBtn').disabled = true;
   document.getElementById('runBtn').textContent = '⏳ Running...';
   setPipStatus('active');
   switchTab('pipeline');
 
-  let resp;
-  try {
-    resp = await fetch('/api/run', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ paper, no_search: noSearch, agent })
-    });
-    const data = await resp.json();
-    currentRunId = data.run_id;
-  } catch(e) {
-    alert('Failed to start run: ' + e.message);
-    document.getElementById('runBtn').disabled = false;
-    document.getElementById('runBtn').textContent = '▶ Run Full Pipeline';
-    setPipStatus('');
-    return;
-  }
+  const resp = await fetch('/api/run', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({paper, no_search: noSearch, agent, vc_profile: vcProfile})
+  }).catch(e => { alert('Failed to start: ' + e.message); return null; });
+  if (!resp) { finishRun(true); return; }
+  const {run_id} = await resp.json();
+  currentRunId = run_id; refreshHistory();
 
-  refreshHistory();
-
-  // SSE
   if (es) es.close();
-  es = new EventSource(`/api/stream/${currentRunId}`);
-
-  es.onmessage = (e) => {
-    const evt = JSON.parse(e.data);
-    handleEvent(evt);
-  };
-  es.onerror = () => {
-    addLog('SSE connection error', null, 'err');
-    es.close();
-    finishRun(true);
-  };
+  es = new EventSource(`/api/stream/${run_id}`);
+  es.onmessage = e => handlePipelineEvent(JSON.parse(e.data));
+  es.onerror = () => { finishRun(true); };
 }
 
-function handleEvent(evt) {
+function handlePipelineEvent(evt) {
   switch (evt.type) {
-    case 'log':
-      addLog(evt.message, evt.ts, evt.side);
-      break;
-    case 'stage_start':
-      setStage(evt.stage, evt.side, 'running');
-      break;
+    case 'log': addLog(evt.message, evt.ts, evt.side); break;
+    case 'stage_start': setStage(evt.stage, evt.side, 'running'); break;
     case 'stage_complete':
       setStage(evt.stage, evt.side, 'complete');
       if (evt.stage === 'research') {
-        if (evt.side === 'bull') renderMd('bullBrief', evt.content || '');
-        if (evt.side === 'bear') renderMd('bearBrief', evt.content || '');
+        if (evt.side === 'bull') { renderMd('bullBrief', evt.content||''); renderSources('bull', evt.content||''); }
+        if (evt.side === 'bear') { renderMd('bearBrief', evt.content||''); renderSources('bear', evt.content||''); }
         showBadge('research');
       }
       if (evt.stage === 'analysis') {
-        if (evt.side === 'bull') renderMd('bullThesis', evt.content || '');
-        if (evt.side === 'bear') renderMd('bearCritique', evt.content || '');
+        if (evt.side === 'bull') { renderMd('bullThesis', evt.content||''); renderSources('bullThesis', evt.content||''); }
+        if (evt.side === 'bear') { renderMd('bearCritique', evt.content||''); renderSources('bearCritique', evt.content||''); }
         showBadge('analysis');
       }
       if (evt.stage === 'judge') {
-        // Light up pitch deck node
         const pd = document.getElementById('sn-pitchdeck');
-        if (pd) { pd.classList.add('done', 'judge-c'); }
+        if (pd) pd.classList.add('done','jc');
         renderPitchDeck(evt.judge_eval, evt.pitch_deck);
         showBadge('pitchdeck');
         switchTab('pitchdeck');
       }
       break;
-    case 'stage_error':
-      setStage(evt.stage, evt.side, 'error');
-      addLog(`STAGE ERROR (${evt.stage}/${evt.side}): ${evt.message}`, null, 'err');
+    case 'stage_error': setStage(evt.stage, evt.side, 'error'); addLog('ERROR: '+evt.message.split('\n')[0], null, 'err'); break;
+    case 'complete': finishRun(false); refreshHistory(); break;
+    case 'error': addLog('FATAL: '+evt.message.split('\n')[0], null, 'err'); finishRun(true); refreshHistory(); break;
+  }
+}
+
+function finishRun(isErr) {
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('runBtn').textContent = '▶ Run Bull/Bear Pipeline';
+  setPipStatus(isErr ? 'err' : 'done');
+  if (es) { es.close(); es = null; }
+}
+
+// ── Discover pipeline ─────────────────────────────────────────────────────────
+function setDiscoverButtons(disabled, primaryText='🔍 Discover Papers', secondaryText='⚡ Discover + Analyze Top Paper') {
+  const discBtn = document.getElementById('discBtn');
+  const discRunTopBtn = document.getElementById('discRunTopBtn');
+  if (discBtn) { discBtn.disabled = disabled; discBtn.textContent = primaryText; }
+  if (discRunTopBtn) { discRunTopBtn.disabled = disabled; discRunTopBtn.textContent = secondaryText; }
+}
+
+async function startDiscover(andAnalyzeTop = false) {
+  const q = document.getElementById('discQuery').value.trim();
+  if (!q) { alert('Enter a research query first.'); return; }
+  autoAnalyzeTopPaper = andAnalyzeTop;
+
+  setDiscoverButtons(true, andAnalyzeTop ? '⏳ Ranking...' : '⏳ Fetching...', andAnalyzeTop ? '⏳ Will analyze top paper...' : '⚡ Discover + Analyze Top Paper');
+  document.getElementById('discStatus').textContent = '';
+  document.getElementById('papersRoot').innerHTML = '<div class="empty"><div class="ei">⏳</div><div class="eh">Fetching and ranking papers...</div></div>';
+
+  // Reset steps
+  ['ingest','embed','rank'].forEach(s => {
+    document.getElementById('ds-'+s).className = 'dstep-dot';
+    document.getElementById('dl-'+s).className = 'dstep-lbl';
+    document.getElementById('dl-'+s).textContent = s==='ingest'?'Fetch from APIs':s==='embed'?'Embed':'VC Score & Rank';
+  });
+  ['da-1','da-2'].forEach(id => document.getElementById(id).classList.remove('active'));
+
+  const body = {
+    query: q,
+    limit: parseInt(document.getElementById('discLimit').value),
+    pass_threshold: parseFloat(document.getElementById('discThresh').value),
+    top_k: 10,
+    recent_years: document.getElementById('discYears').value ? parseInt(document.getElementById('discYears').value) : null,
+    vc_profile: document.getElementById('vcProfile').value.trim(),
+  };
+
+  const resp = await fetch('/api/discover', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+  }).catch(e => { alert('Failed: ' + e.message); return null; });
+  if (!resp) { setDiscoverButtons(false); autoAnalyzeTopPaper = false; return; }
+  discRunId = (await resp.json()).run_id;
+
+  if (discEs) discEs.close();
+  discEs = new EventSource(`/api/discover/stream/${discRunId}`);
+  discEs.onmessage = e => handleDiscoverEvent(JSON.parse(e.data));
+  discEs.onerror = () => { setDiscoverButtons(false); autoAnalyzeTopPaper = false; };
+}
+
+function handleDiscoverEvent(evt) {
+  switch (evt.type) {
+    case 'discover_log':
+      document.getElementById('discStatus').textContent = evt.message;
       break;
-    case 'queries':
-      addLog(`[${evt.side.toUpperCase()} RESEARCHER] Generated queries: ${evt.queries.join(' | ')}`, null, evt.side);
+    case 'discover_step':
+      updateDiscStep(evt.step, evt.status, evt.label, evt.count);
       break;
-    case 'complete':
-      finishRun(false);
-      refreshHistory();
+    case 'discover_complete':
+      document.getElementById('discStatus').textContent = `${evt.passed} papers passed threshold out of ${evt.total_ingested} fetched.`;
+      renderPaperCards(evt.papers);
+      setDiscoverButtons(false);
+      if (discEs) { discEs.close(); discEs = null; }
+      if (autoAnalyzeTopPaper && evt.papers && evt.papers.length) {
+        const top = evt.papers[0];
+        autoAnalyzeTopPaper = false;
+        document.getElementById('discStatus').textContent = `Top-ranked paper selected: ${top.title}. Loading full paper and starting Bull/Bear...`;
+        analyzeFromDiscover(top.paper_id);
+      } else {
+        autoAnalyzeTopPaper = false;
+      }
       break;
     case 'error':
-      addLog('FATAL ERROR: ' + evt.message, null, 'err');
-      finishRun(true);
-      refreshHistory();
+      setDiscoverButtons(false);
+      autoAnalyzeTopPaper = false;
+      document.getElementById('discStatus').textContent = '⚠ Error: ' + evt.message.split('\n')[0];
+      document.getElementById('papersRoot').innerHTML = `<div class="empty"><div class="ei">⚠</div><div class="el">Error</div><div class="eh">${esc(evt.message.split('\n')[0])}</div></div>`;
+      if (discEs) { discEs.close(); discEs = null; }
       break;
   }
 }
 
-function finishRun(isError) {
-  document.getElementById('runBtn').disabled = false;
-  document.getElementById('runBtn').textContent = '▶ Run Full Pipeline';
-  setPipStatus(isError ? 'error' : 'done');
-  if (es) { es.close(); es = null; }
+function updateDiscStep(step, status, label, count) {
+  const dot = document.getElementById('ds-' + step);
+  const lbl = document.getElementById('dl-' + step);
+  if (!dot) return;
+  dot.className = 'dstep-dot ' + (status==='running'?'running':status==='complete'?'done':'');
+  lbl.className = 'dstep-lbl ' + (status==='running'?'running':status==='complete'?'done':'');
+  if (label) lbl.textContent = label;
+  if (status === 'complete') {
+    if (step === 'ingest') document.getElementById('da-1')?.classList.add('active');
+    if (step === 'embed') document.getElementById('da-2')?.classList.add('active');
+  }
+}
+
+function renderPaperCards(papers) {
+  const root = document.getElementById('papersRoot');
+  if (!papers || !papers.length) {
+    root.innerHTML = '<div class="empty"><div class="ei">🔎</div><div class="el">No papers passed the threshold</div><div class="eh">Try lowering the Min Score or broadening the query</div></div>';
+    return;
+  }
+  root.innerHTML = `<div style="font-size:12px;color:var(--muted);margin-bottom:6px">${papers.length} paper${papers.length!==1?'s':''} ranked by VC investability score</div>
+  <div class="papers-grid">${papers.map((p, i) => paperCard(p, i+1)).join('')}</div>`;
+}
+
+function paperCard(p, rank) {
+  const sc = p.score;
+  const cls = scClassFrac(sc);
+  const fillPct = Math.round(sc * 100);
+  const titleHtml = p.url
+    ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>`
+    : esc(p.title);
+
+  const feats = p.features || {};
+  const featItems = [
+    {l:'Novelty', v: feats.novelty||0},
+    {l:'Value', v: feats.investor_value||0},
+    {l:'Build', v: feats.buildability||0},
+    {l:'Moat', v: feats.defensibility||0},
+    {l:'Evidence', v: feats.evidence_strength||0},
+  ];
+
+  const signals = (p.top_signals||[]).map(s => `<span class="signal-tag">${esc(s.slice(0,60))}</span>`).join('');
+  const caveats = (p.caveats||[]).map(s => `<span class="caveat-tag">⚠ ${esc(s.slice(0,50))}</span>`).join('');
+
+  return `<div class="paper-card">
+    <div class="paper-card-top">
+      <div class="paper-rank">#${rank}</div>
+      <div class="paper-info">
+        <div class="paper-title">${titleHtml}</div>
+        <div class="paper-meta">
+          ${p.venue ? `<span>📍 ${esc(p.venue)}</span>` : ''}
+          ${p.year ? `<span>📅 ${p.year}</span>` : ''}
+          ${p.citation_count ? `<span>📑 ${p.citation_count} citations</span>` : ''}
+          ${p.is_open_access ? `<span class="oa-badge">Open Access</span>` : ''}
+          ${p.has_full_text ? `<span style="color:var(--bull);font-size:10px">✓ Full text</span>` : ''}
+        </div>
+        <div class="score-bar-wrap">
+          <div class="score-val ${cls}">${(sc*100).toFixed(0)}</div>
+          <div class="score-bar"><div class="score-fill ${cls}" style="width:${fillPct}%"></div></div>
+          <div style="font-size:10px;color:var(--muted);flex-shrink:0">VC Score</div>
+        </div>
+        <div class="feat-bars">
+          ${featItems.map(f=>`<div class="feat-bar">
+            <div class="feat-bar-track"><div class="feat-bar-fill" style="width:${Math.round(f.v*100)}%;background:${f.v>=.6?'var(--bull)':f.v>=.35?'var(--judge)':'var(--bear)'}"></div></div>
+            <div class="feat-lbl">${f.l}</div>
+          </div>`).join('')}
+        </div>
+        <div class="signals">${signals}${caveats}</div>
+        ${p.abstract ? `<div class="paper-abstract">${esc(p.abstract)}</div>` : ''}
+        <div class="paper-actions">
+          <button class="btn-analyze" onclick="analyzeFromDiscover('${esc(p.paper_id)}')">Analyze → Bull/Bear</button>
+          ${p.fields_of_study?.length ? `<span style="font-size:10px;color:var(--muted)">${p.fields_of_study.slice(0,2).map(f=>esc(f)).join(' · ')}</span>` : ''}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function analyzeFromDiscover(paperId) {
+  document.getElementById('discStatus').textContent = `Loading full paper data...`;
+  try {
+    const r = await fetch(`/api/paper/${encodeURIComponent(paperId)}`);
+    if (!r.ok) throw new Error('Paper not found in DB');
+    const paperData = await r.json();
+    document.getElementById('discStatus').textContent = `Loaded paper for analysis: ${paperData.title || paperId}`;
+    document.getElementById('paperInput').value = JSON.stringify(paperData, null, 2);
+    switchTab('pipeline');
+    // Auto-start the pipeline
+    await startRun();
+  } catch(e) {
+    document.getElementById('discStatus').textContent = '⚠ Failed to load paper: ' + e.message;
+  }
+}
+
+// ── Pitch Deck ────────────────────────────────────────────────────────────────
+function renderPitchDeck(jeval, pd) {
+  if (!jeval) return;
+  const sc = jeval.investability_score || 0;
+  const rec = jeval.recommendation || 'WATCH_LIST';
+  const rc = sc>=70?'hi':sc>=40?'mid':'lo';
+
+  const scores = [
+    {l:'Commercial', v:jeval.commercial_viability, n:jeval.commercial_viability_rationale},
+    {l:'Team Signal', v:jeval.team_signal_strength, n:jeval.team_signal_rationale},
+    {l:'Timing', v:jeval.timing_and_market, n:jeval.timing_rationale},
+    {l:'Moat', v:jeval.competitive_moat, n:jeval.moat_rationale},
+    {l:'Conviction', v:jeval.risk_adjusted_conviction, n:jeval.risk_conviction_rationale},
+  ];
+
+  const adj = jeval.bull_vs_bear_adjudication || {};
+
+  let html = `
+  <div class="pd-hero">
+    <div class="pd-ring ${rc}"><div class="pd-snum">${sc}</div><div class="pd-slbl">/ 100</div></div>
+    <div style="flex:1">
+      <div class="rec-ban ${rec}">${rec.replace(/_/g,' ')}</div>
+      <div class="pd-verdict">"${esc(jeval.one_line_verdict||'')}"</div>
+      <div class="pd-rat">${esc(jeval.investability_rationale||'')}</div>
+    </div>
+  </div>
+  <div class="sgrid">${scores.map(s=>`
+    <div class="sc">
+      <div class="sc-lbl">${s.l}</div>
+      <div class="sc-v ${scClass(s.v??0)}">${s.v??'—'}</div>
+      <div class="sc-n">${esc((s.n||'').slice(0,100))}${(s.n||'').length>100?'…':''}</div>
+    </div>`).join('')}
+  </div>`;
+
+  if (pd?.memo_title) {
+    const prCls = (pd.partner_meeting_recommendation||'').toLowerCase().includes('take')?'take'
+      :(pd.partner_meeting_recommendation||'').toLowerCase().includes('monitor')?'monitor':'pass';
+    html += `
+  <div class="card">
+    <div class="card-h">
+      <div class="card-title">${esc(pd.memo_title)}</div>
+      <div style="flex:1"></div>
+      <div style="font-size:11px;color:var(--muted)">${pd.memo_date||''}</div>
+    </div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:16px">
+      ${ms('Executive Summary',pd.executive_summary)}
+      ${ms('The Opportunity',pd.the_opportunity)}
+      ${ms('Technology Differentiation',pd.technology_differentiation)}
+      ${ms('Team Assessment',pd.team_assessment)}
+      ${ms('Market Landscape',pd.market_landscape)}
+      <div class="two-col">
+        <div class="pdsec bc"><h4>Bull Case</h4><p>${esc(pd.bull_case_narrative||'')}</p></div>
+        <div class="pdsec rc"><h4>Bear Case</h4><p>${esc(pd.bear_case_narrative||'')}</p></div>
+      </div>
+      ${renderRisks(pd.key_risks_ranked)}
+      ${renderBeliefs(pd.what_we_need_to_believe)}
+      ${renderNextSteps(pd.suggested_next_steps)}
+      ${renderAdj(adj)}
+      ${ms('Comparable Transactions',pd.comparable_transactions)}
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:7px;font-weight:600">Partner Meeting Recommendation</div>
+        <div class="prec ${prCls}">${esc(pd.partner_meeting_recommendation||'')}</div>
+      </div>
+    </div>
+  </div>`;
+  }
+
+  // Evidence quality
+  if (jeval.evidence_quality_assessment) {
+    html += `<div class="card"><div class="card-h"><div class="card-title">Evidence Quality Assessment</div></div>
+    <div class="card-body" style="font-size:12px;color:var(--muted2);line-height:1.7">${esc(jeval.evidence_quality_assessment)}</div></div>`;
+  }
+
+  document.getElementById('pdRoot').innerHTML = html;
+}
+
+function ms(title, text) {
+  if (!text) return '';
+  return `<div class="pdsec"><h4>${title}</h4><p>${esc(text)}</p></div>`;
+}
+function renderRisks(risks) {
+  if (!risks?.length) return '';
+  return `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:7px;font-weight:600">Key Risks</div>
+  ${risks.map(r=>`<div class="risk-item"><span class="sev ${r.severity||'MEDIUM'}">${r.severity||'?'}</span><div><div class="risk-t">${esc(r.risk||'')}</div>${r.mitigatable&&r.mitigation_path?`<div class="risk-m">Mitigation: ${esc(r.mitigation_path)}</div>`:''}</div></div>`).join('')}</div>`;
+}
+function renderBeliefs(b) {
+  if (!b?.length) return '';
+  return `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:7px;font-weight:600">What We Need to Believe</div><ul class="blist">${b.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
+}
+function renderNextSteps(s) {
+  if (!s?.length) return '';
+  return `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:7px;font-weight:600">Suggested Next Steps</div><ul class="nlist">${s.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
+}
+function renderAdj(adj) {
+  if (!adj?.bull_prevailed_on?.length && !adj?.bear_prevailed_on?.length) return '';
+  return `<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:7px;font-weight:600">Bull vs Bear Adjudication</div>
+  <div class="adj-grid">
+    <div class="adj-col"><h5>Bull Prevailed On</h5>${(adj.bull_prevailed_on||[]).map(p=>`<div class="adj-item bi">${esc(p)}</div>`).join('')}</div>
+    <div class="adj-col"><h5>Bear Prevailed On</h5>${(adj.bear_prevailed_on||[]).map(p=>`<div class="adj-item ri">${esc(p)}</div>`).join('')}</div>
+  </div>
+  ${(adj.unresolved_tensions||[]).length?`<div style="margin-top:8px"><h5 class="adj-col" style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;font-weight:600">Unresolved Tensions</h5>${(adj.unresolved_tensions||[]).map(p=>`<div class="adj-item ui">${esc(p)}</div>`).join('')}</div>`:''}
+  </div>`;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 refreshHistory();
-// Auto-load sample on first visit
-fetch('/api/sample').then(r=>r.json()).then(data => {
-  if (!document.getElementById('paperInput').value.trim()) {
-    document.getElementById('paperInput').value = JSON.stringify(data, null, 2);
-  }
-}).catch(()=>{});
 </script>
 </body>
 </html>

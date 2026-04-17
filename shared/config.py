@@ -38,8 +38,10 @@ class Settings:
 
     # ── Pipeline behaviour ───────────────────────────────────────────────────
     ocr_score_threshold: float
+    ocr_max_pages: int
     paper_pass_threshold: float
     pdf_download_dir: str
+    paddleocr_command: str
 
     # ── Logging ───────────────────────────────────────────────────────────────
     log_level: str
@@ -64,8 +66,10 @@ class Settings:
         self.db_path = os.getenv("DB_PATH", str(_ROOT / "data" / "papers.db"))
 
         self.ocr_score_threshold = float(os.getenv("OCR_SCORE_THRESHOLD", "0.6"))
+        self.ocr_max_pages = int(os.getenv("OCR_MAX_PAGES", "0"))
         self.paper_pass_threshold = float(os.getenv("PAPER_PASS_THRESHOLD", "0.65"))
         self.pdf_download_dir = os.getenv("PDF_DOWNLOAD_DIR", str(_ROOT / "data" / "pdfs"))
+        self.paddleocr_command = os.getenv("PADDLEOCR_COMMAND", "paddleocr_mcp")
 
         self.log_level = os.getenv("LOG_LEVEL", "INFO")
         self.log_dir = os.getenv("LOG_DIR", str(_ROOT / "logs"))

@@ -19,6 +19,7 @@ from graph.state import AgentState
 from tools.llm import call_llm
 
 logger = logging.getLogger(__name__)
+JUDGE_MODEL = "llama3.1:8b"
 
 # ---------------------------------------------------------------------------
 # System prompts — multi-pass evaluation
@@ -149,6 +150,16 @@ Return ONLY valid JSON:
 }
 """
 
+JSON_REPAIR_SYSTEM = """\
+You repair malformed model outputs into valid JSON.
+
+Rules:
+- Return ONLY valid JSON.
+- Do not add markdown fences or commentary.
+- Preserve the original meaning as closely as possible.
+- If a required field is missing, infer the best concise value from the source text.
+""".strip()
+
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
@@ -163,6 +174,100 @@ def _parse_json(response: str) -> dict:
     except json.JSONDecodeError:
         pass
     return {"error": "JSON parse failure", "raw": response[:800]}
+
+
+def _is_valid_evaluation(data: dict) -> bool:
+    required = [
+        "investability_score",
+        "investability_rationale",
+        "commercial_viability",
+        "commercial_viability_rationale",
+        "team_signal_strength",
+        "team_signal_rationale",
+        "timing_and_market",
+        "timing_rationale",
+        "competitive_moat",
+        "moat_rationale",
+        "risk_adjusted_conviction",
+        "risk_conviction_rationale",
+        "recommendation",
+        "one_line_verdict",
+        "evidence_quality_assessment",
+        "bull_vs_bear_adjudication",
+    ]
+    return all(k in data for k in required) and isinstance(
+        data.get("bull_vs_bear_adjudication"), dict
+    )
+
+
+def _is_valid_pitch_deck(data: dict) -> bool:
+    required = [
+        "memo_title",
+        "executive_summary",
+        "the_opportunity",
+        "technology_differentiation",
+        "team_assessment",
+        "market_landscape",
+        "bull_case_narrative",
+        "bear_case_narrative",
+        "key_risks_ranked",
+        "what_we_need_to_believe",
+        "suggested_next_steps",
+        "comparable_transactions",
+        "partner_meeting_recommendation",
+    ]
+    return all(k in data for k in required)
+
+
+def _coerce_evaluation(data: dict) -> dict:
+    adjudication = data.get("bull_vs_bear_adjudication")
+    if not isinstance(adjudication, dict):
+        adjudication = {}
+    data["bull_vs_bear_adjudication"] = {
+        "bull_prevailed_on": adjudication.get("bull_prevailed_on", []),
+        "bear_prevailed_on": adjudication.get("bear_prevailed_on", []),
+        "unresolved_tensions": adjudication.get("unresolved_tensions", []),
+    }
+    return data
+
+
+def _repair_json(raw_response: str, schema_name: str) -> dict:
+    repair_prompt = (
+        f"The following model output was supposed to be valid JSON for the schema "
+        f"'{schema_name}' but was malformed.\n\n"
+        f"Malformed output:\n{raw_response}\n"
+    )
+    repaired = call_llm(JUDGE_MODEL, JSON_REPAIR_SYSTEM, repair_prompt, temperature=0.0)
+    return _parse_json(repaired)
+
+
+def _call_structured_json(
+    system_prompt: str,
+    user_prompt: str,
+    validator,
+    schema_name: str,
+) -> dict:
+    raw_response = call_llm(JUDGE_MODEL, system_prompt, user_prompt)
+    parsed = _parse_json(raw_response)
+    if validator(parsed):
+        return parsed
+
+    logger.warning("[Judge Agent] %s output malformed; attempting JSON repair", schema_name)
+    repaired = _repair_json(raw_response, schema_name)
+    if validator(repaired):
+        return repaired
+
+    logger.warning("[Judge Agent] %s JSON repair failed; retrying original prompt once", schema_name)
+    retry_response = call_llm(JUDGE_MODEL, system_prompt, user_prompt, temperature=0.0)
+    retry_parsed = _parse_json(retry_response)
+    if validator(retry_parsed):
+        return retry_parsed
+
+    repaired_retry = _repair_json(retry_response, schema_name)
+    if validator(repaired_retry):
+        return repaired_retry
+
+    return retry_parsed
 
 
 def _format_evidence_for_judge(evidence: list[dict]) -> str:
@@ -234,8 +339,13 @@ def judge_agent(state: AgentState) -> AgentState:
         "is your judgment, not a formula. Trace claims to evidence."
     )
 
-    response_1 = call_llm("llama3.1:8b", system_1, user_prompt_1)
-    evaluation = _parse_json(response_1)
+    evaluation = _call_structured_json(
+        system_1,
+        user_prompt_1,
+        _is_valid_evaluation,
+        "judge_evaluation",
+    )
+    evaluation = _coerce_evaluation(evaluation)
 
     # Clamp and validate the investability score
     inv_score = evaluation.get("investability_score", 50)
@@ -280,8 +390,12 @@ def judge_agent(state: AgentState) -> AgentState:
         "soup. Partners will spend 3-4 minutes on this. Make it count."
     )
 
-    response_2 = call_llm("llama3.1:8b", PITCH_DECK_SYSTEM, user_prompt_2)
-    pitch_deck = _parse_json(response_2)
+    pitch_deck = _call_structured_json(
+        PITCH_DECK_SYSTEM,
+        user_prompt_2,
+        _is_valid_pitch_deck,
+        "pitch_deck",
+    )
     pitch_deck["memo_date"] = datetime.utcnow().strftime("%Y-%m-%d")
 
     logger.info(

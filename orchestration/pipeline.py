@@ -142,7 +142,11 @@ def _step_embed(paper_ids: list[str]) -> int:
     return len(papers)
 
 
-def _step_rank(paper_ids: list[str], top_k: int) -> list[InvestorScore]:
+def _step_rank(
+    paper_ids: list[str],
+    top_k: int,
+    vc_profile: str = "",
+) -> list[InvestorScore]:
     """Compute investor scores; return top_k sorted descending."""
     from investor_signal_mcp.server import compute_investor_score
 
@@ -150,7 +154,7 @@ def _step_rank(paper_ids: list[str], top_k: int) -> list[InvestorScore]:
     papers = get_papers_by_ids(paper_ids)
     scores: list[InvestorScore] = []
     for paper in papers:
-        s = compute_investor_score(paper)
+        s = compute_investor_score(paper, vc_profile=vc_profile)
         update_investor_score(paper.paper_id, s.total_score)
         scores.append(s)
 
@@ -195,9 +199,9 @@ def _pdf_to_images(pdf_path: Path) -> list[Path]:
         img_dir.mkdir(exist_ok=True)
         doc = fitz.open(str(pdf_path))
         paths: list[Path] = []
-        # Only OCR first 8 pages (abstract + intro + conclusion).
+        max_pages = settings.ocr_max_pages
         for i, page in enumerate(doc):
-            if i >= 8:
+            if max_pages > 0 and i >= max_pages:
                 break
             pix = page.get_pixmap(dpi=150)
             img_path = img_dir / f"page_{i:03d}.png"
@@ -216,12 +220,8 @@ async def _call_paddleocr_mcp(image_path: Path) -> str:
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.stdio import stdio_client
 
-        ocr_command = settings.__dict__.get(
-            "paddleocr_command",
-            "/Users/naveenstalin/Desktop/Uni/Spring Semester/AI Agents/MCP for data ingestion/PaddleOCR/.venv-paddleocr-mcp/bin/paddleocr_mcp",
-        )
         server_params = StdioServerParameters(
-            command=ocr_command,
+            command=settings.paddleocr_command,
             args=["--pipeline", "OCR", "--ppocr_source", "local"],
             env={"PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK": "True"},
         )
@@ -280,6 +280,27 @@ def _run_ocr_on_paper(paper: Paper) -> Optional[str]:
     return combined if combined.strip() else None
 
 
+def ensure_paper_full_text(paper_id: str) -> Optional[Paper]:
+    """Ensure a paper has OCR text available when open-access PDF exists."""
+    paper = get_paper(paper_id)
+    if paper is None:
+        return None
+    if (paper.ocr_text or "").strip():
+        return paper
+    if not paper.is_open_access or not paper.pdf_url:
+        return paper
+
+    logger.info("Ensuring full text is available for %s before analysis", paper.paper_id)
+    ocr_text = _run_ocr_on_paper(paper)
+    if ocr_text:
+        update_ocr_text(paper.paper_id, ocr_text)
+        paper.ocr_text = ocr_text
+        logger.info("Full text ready for %s (%d chars)", paper.paper_id, len(ocr_text))
+    else:
+        logger.info("Full text unavailable for %s after OCR attempt", paper.paper_id)
+    return paper
+
+
 def _step_ocr_gate(
     top_scores: list[InvestorScore],
     ocr_threshold: float,
@@ -325,6 +346,7 @@ def run_pipeline(
     pass_threshold: Optional[float] = None,
     recent_years: Optional[int] = None,
     top_k: int = 10,
+    vc_profile: str = "",
 ) -> PipelineRun:
     """Execute the full research intelligence pipeline.
 
@@ -365,7 +387,7 @@ def run_pipeline(
     n_embedded = _step_embed(paper_ids)
 
     # Step 3: Rank by novelty / investor value, then threshold-gate.
-    all_scores = _step_rank(paper_ids, top_k=len(paper_ids))
+    all_scores = _step_rank(paper_ids, top_k=len(paper_ids), vc_profile=vc_profile)
     passed_scores = [s for s in all_scores if s.total_score >= pass_threshold]
     top_scores = passed_scores[:top_k]
     passed_ids = [s.paper_id for s in passed_scores]
@@ -380,7 +402,7 @@ def run_pipeline(
     # Step 5: Re-score OCR'd papers (if any).
     if ocr_triggered:
         logger.info("Re-scoring %d OCR'd papers", len(ocr_triggered))
-        rescored_passed = _step_rank(passed_ids, top_k=len(passed_ids))
+        rescored_passed = _step_rank(passed_ids, top_k=len(passed_ids), vc_profile=vc_profile)
         passed_scores = [s for s in rescored_passed if s.total_score >= pass_threshold]
         top_scores = passed_scores[:top_k]
 
@@ -439,6 +461,7 @@ if __name__ == "__main__":
     parser.add_argument("--pass-threshold", type=float, default=None, help="Score threshold required to proceed (0-1)")
     parser.add_argument("--recent-years", type=int, default=None, help="Restrict ingestion to last N years")
     parser.add_argument("--top-k", type=int, default=10, help="Top papers to report")
+    parser.add_argument("--vc-profile", type=str, default="", help="Investor profile to tailor triage scoring")
     args = parser.parse_args()
 
     result = run_pipeline(
@@ -448,6 +471,7 @@ if __name__ == "__main__":
         pass_threshold=args.pass_threshold,
         recent_years=args.recent_years,
         top_k=args.top_k,
+        vc_profile=args.vc_profile,
     )
     print(json.dumps({
         "run_id": result.run_id,

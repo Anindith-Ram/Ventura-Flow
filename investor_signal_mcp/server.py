@@ -130,7 +130,13 @@ def _paper_evidence_text(paper: Paper) -> str:
     )
 
 
-def _evaluate_with_llm(paper: Paper) -> Optional[dict]:
+def _profile_context(vc_profile: str) -> str:
+    if not vc_profile.strip():
+        return "No VC profile provided. Use a general deep-tech investor lens."
+    return f"VC profile:\n{vc_profile.strip()}"
+
+
+def _evaluate_with_llm(paper: Paper, vc_profile: str = "") -> Optional[dict]:
     if not settings.openai_api_key:
         return None
 
@@ -139,7 +145,9 @@ def _evaluate_with_llm(paper: Paper) -> Optional[dict]:
 
         user_prompt = (
             "Evaluate this paper for investor-grade novelty and value creation.\n"
-            "Be strict and reduce scores if the paper is mostly conceptual.\n\n"
+            "Be strict and reduce scores if the paper is mostly conceptual.\n"
+            "Tailor the score to the VC profile when one is provided.\n\n"
+            f"{_profile_context(vc_profile)}\n\n"
             f"{_paper_evidence_text(paper)}"
         )
         payload = {
@@ -174,8 +182,9 @@ def _evaluate_with_llm(paper: Paper) -> Optional[dict]:
         return None
 
 
-def _evaluate_with_fallback_heuristics(paper: Paper) -> dict:
+def _evaluate_with_fallback_heuristics(paper: Paper, vc_profile: str = "") -> dict:
     text = f"{paper.title} {paper.abstract or ''} {paper.ocr_text or ''}".lower()
+    profile_text = vc_profile.lower()
 
     novelty_terms = ["novel", "first", "new paradigm", "breakthrough", "unprecedented"]
     build_terms = ["prototype", "implementation", "system", "hardware", "deployed", "fabricated"]
@@ -193,6 +202,14 @@ def _evaluate_with_fallback_heuristics(paper: Paper) -> dict:
     defensibility = _ratio(moat_terms)
     investor_value = max(0.0, min(1.0, 0.45 * novelty + 0.35 * buildability + 0.20 * defensibility))
     execution_risk = max(0.0, min(1.0, 1.0 - (0.55 * buildability + 0.45 * evidence_strength)))
+    profile_bonus = 0.0
+    if profile_text:
+        overlap_terms = [
+            token for token in profile_text.replace(",", " ").split()
+            if len(token) > 4 and token in text
+        ]
+        profile_bonus = min(0.1, 0.02 * len(set(overlap_terms)))
+        investor_value = min(1.0, investor_value + profile_bonus)
 
     return {
         "novelty": round(novelty, 4),
@@ -205,6 +222,7 @@ def _evaluate_with_fallback_heuristics(paper: Paper) -> dict:
         "top_signals": [
             "Fallback heuristic mode used (OPENAI_API_KEY missing/unavailable).",
             "Scores estimate novelty/buildability/evidence from paper text only.",
+            "VC profile overlap applied heuristically." if profile_bonus else "No VC-profile-specific heuristic uplift applied.",
             "Use LLM scoring for stricter diligence quality.",
         ],
         "caveats": [
@@ -215,10 +233,10 @@ def _evaluate_with_fallback_heuristics(paper: Paper) -> dict:
     }
 
 
-def compute_investor_score(paper: Paper) -> InvestorScore:
+def compute_investor_score(paper: Paper, vc_profile: str = "") -> InvestorScore:
     """Score paper by novelty, buildability, IP potential, and investor value."""
-    llm_eval = _evaluate_with_llm(paper)
-    raw = llm_eval or _evaluate_with_fallback_heuristics(paper)
+    llm_eval = _evaluate_with_llm(paper, vc_profile=vc_profile)
+    raw = llm_eval or _evaluate_with_fallback_heuristics(paper, vc_profile=vc_profile)
 
     features = FeatureScores(
         novelty=round(_clamp_score(raw.get("novelty")), 4),
