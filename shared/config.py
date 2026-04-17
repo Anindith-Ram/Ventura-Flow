@@ -38,6 +38,8 @@ class Settings:
     # ── Pipeline behaviour ───────────────────────────────────────────────────
     ocr_score_threshold: float
     paper_pass_threshold: float
+    ocr_fallback_enabled: bool
+    pdf_text_max_pages: int
     pdf_download_dir: str
 
     # ── Logging ───────────────────────────────────────────────────────────────
@@ -64,6 +66,10 @@ class Settings:
 
         self.ocr_score_threshold = float(os.getenv("OCR_SCORE_THRESHOLD", "0.6"))
         self.paper_pass_threshold = float(os.getenv("PAPER_PASS_THRESHOLD", "0.65"))
+        self.ocr_fallback_enabled = os.getenv("OCR_FALLBACK_ENABLED", "false").lower() in {
+            "1", "true", "yes", "on"
+        }
+        self.pdf_text_max_pages = max(1, int(os.getenv("PDF_TEXT_MAX_PAGES", "20")))
         self.pdf_download_dir = os.getenv("PDF_DOWNLOAD_DIR", str(_ROOT / "data" / "pdfs"))
 
         self.log_level = os.getenv("LOG_LEVEL", "INFO")

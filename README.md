@@ -131,7 +131,7 @@ This project has three MCP servers plus one orchestrator:
 - `papers_mcp`: ingest metadata from OpenAlex
 - `memory_mcp`: generate embeddings and semantic retrieval
 - `investor_signal_mcp`: LLM-based novelty/IP/value scoring
-- `orchestration/pipeline.py`: full run orchestration with threshold gates + OCR stage
+- `orchestration/pipeline.py`: full run orchestration with threshold gates + text enrichment stage
 
 The ranking system is intentionally designed to avoid pure bibliometric ranking.  
 It focuses on:
@@ -159,7 +159,7 @@ OpenAlex                semantic retrieval         + penalties for risk/conceptu
                             |
                    orchestration/pipeline.py
                             |
-                 optional OCR enrichment (PaddleOCR MCP)
+                 optional OCR fallback (PaddleOCR MCP)
 ```
 
 ---
@@ -226,11 +226,13 @@ Important values:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `OPENAI_API_KEY` | empty | Enables LLM novelty scoring |
-| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible endpoint |
-| `OPENAI_SCORING_MODEL` | `gpt-4.1-mini` | LLM used for scoring |
+| `OPENAI_API_KEY` | empty | Optional auth for OpenAI-compatible endpoint |
+| `OPENAI_BASE_URL` | `http://localhost:11434/v1` | OpenAI-compatible endpoint |
+| `OPENAI_SCORING_MODEL` | `llama3.1:8b-instruct-q4_K_M` | LLM used for scoring |
 | `PAPER_PASS_THRESHOLD` | `0.65` | Minimum score to proceed |
 | `OCR_SCORE_THRESHOLD` | `0.6` | Minimum score to trigger OCR stage |
+| `OCR_FALLBACK_ENABLED` | `false` | Enable OCR fallback if direct PDF text extraction fails |
+| `PDF_TEXT_MAX_PAGES` | `20` | Max PDF pages to scan for direct embedded text |
 | `recent_years` (CLI only) | unset | Restrict ingestion to last N years |
 | `EMBEDDING_BACKEND` | `fastembed` | `fastembed` or `openai` |
 | `QDRANT_URL` | empty | Empty = in-memory store |
@@ -238,8 +240,8 @@ Important values:
 
 Notes:
 
-- If `OPENAI_API_KEY` is not set, ranking falls back to heuristic mode.
-- OCR runs only for passed papers that have OA PDFs.
+- If local LLM endpoint is unavailable, ranking falls back to heuristic mode.
+- OCR fallback runs only for passed papers that have OA PDFs and only if `OCR_FALLBACK_ENABLED=true`.
 
 ---
 
@@ -353,8 +355,8 @@ Pipeline gating in `orchestration/pipeline.py`:
 2. Embed papers
 3. Score all papers
 4. Keep only papers with `score >= PAPER_PASS_THRESHOLD`
-5. On passed papers, OCR papers with `score >= OCR_SCORE_THRESHOLD` and OA PDF
-6. Re-score OCR-enriched papers
+5. On passed papers, extract direct PDF text for `score >= OCR_SCORE_THRESHOLD` and OA PDF
+6. If direct extraction fails and `OCR_FALLBACK_ENABLED=true`, run OCR fallback and re-score enriched papers
 7. Output top passed papers
 
 This ensures low-signal papers are filtered early.
@@ -416,6 +418,6 @@ uv run python -m orchestration.pipeline \
 - **No papers pass threshold**
   - Lower `PAPER_PASS_THRESHOLD` slightly (e.g. `0.65 -> 0.58`).
 - **No OCR triggered**
-  - Ensure papers have OA `pdf_url` and pass OCR threshold.
+  - OCR fallback is off by default; set `OCR_FALLBACK_ENABLED=true` if needed.
 - **Rate-limit errors from sources**
   - Reduce `--limit` and retry later; OpenAlex retry/backoff is built in.

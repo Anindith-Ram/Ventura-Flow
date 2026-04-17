@@ -202,9 +202,10 @@ Two thresholds are used in orchestration:
    - Applied immediately after scoring all ingested papers.
    - Only passed papers continue to next stages.
 
-2. **OCR threshold** (`OCR_SCORE_THRESHOLD`, default `0.6`):
+2. **Text enrichment threshold** (`OCR_SCORE_THRESHOLD`, default `0.6`):
    - Applied only to already-passed papers.
-   - Requires OA + PDF URL to trigger OCR.
+   - Requires OA + PDF URL to trigger direct PDF text extraction.
+   - Optional OCR fallback only runs when `OCR_FALLBACK_ENABLED=true`.
 
 Optional time filter:
 
@@ -214,7 +215,7 @@ Optional time filter:
 
 Pipeline sequence in `orchestration/pipeline.py`:
 
-1) ingest (optionally filtered by recent years) -> 2) embed -> 3) score all -> 4) filter by pass threshold -> 5) OCR gate -> 6) re-score OCR'd passed papers.
+1) ingest (optionally filtered by recent years) -> 2) embed -> 3) score all -> 4) filter by pass threshold -> 5) direct PDF text extraction gate -> 6) optional OCR fallback -> 7) re-score enriched passed papers.
 
 ---
 
@@ -229,6 +230,8 @@ OPENAI_SCORING_MODEL=llama3.1:8b-instruct-q4_K_M
 
 PAPER_PASS_THRESHOLD=0.65
 OCR_SCORE_THRESHOLD=0.6
+OCR_FALLBACK_ENABLED=false
+PDF_TEXT_MAX_PAGES=20
 ```
 
 Useful CLI overrides:
@@ -272,7 +275,7 @@ If adding a new feature:
 
 - **LLM scoring unavailable**: check local model server, `OPENAI_BASE_URL`, and model name.
 - **No accepted papers**: lower `PAPER_PASS_THRESHOLD`.
-- **No OCR triggered**: lower `OCR_SCORE_THRESHOLD` and verify OA PDF links.
+- **No OCR triggered**: OCR fallback is off by default; set `OCR_FALLBACK_ENABLED=true` if needed.
 - **Vector store empty errors**: run embedding step before rank/search.
 - **Dim mismatch after embedding model change**: rebuild vector store.
 

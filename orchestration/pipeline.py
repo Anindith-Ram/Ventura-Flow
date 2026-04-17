@@ -194,6 +194,27 @@ def _pdf_to_images(pdf_path: Path) -> list[Path]:
         return []
 
 
+def _extract_pdf_text(pdf_path: Path, max_pages: int) -> Optional[str]:
+    """Extract embedded text directly from PDF pages."""
+    try:
+        import fitz  # pymupdf
+
+        doc = fitz.open(str(pdf_path))
+        chunks: list[str] = []
+        for i, page in enumerate(doc):
+            if i >= max_pages:
+                break
+            text = page.get_text("text") or ""
+            if text.strip():
+                chunks.append(text)
+        doc.close()
+        combined = "\n\n".join(chunks).strip()
+        return combined if combined else None
+    except Exception as exc:
+        logger.warning("Direct PDF text extraction failed: %s", exc)
+        return None
+
+
 async def _call_paddleocr_mcp(image_path: Path) -> str:
     """Start paddleocr MCP as subprocess and call its OCR tool."""
     try:
@@ -264,6 +285,35 @@ def _run_ocr_on_paper(paper: Paper) -> Optional[str]:
     return combined if combined.strip() else None
 
 
+def _extract_or_ocr_text(paper: Paper) -> Optional[str]:
+    """Prefer direct PDF text extraction; optionally OCR as fallback."""
+    pdf_path = _download_pdf(paper)
+    if not pdf_path:
+        return None
+
+    extracted = _extract_pdf_text(pdf_path, max_pages=settings.pdf_text_max_pages)
+    if extracted:
+        logger.info(
+            "Direct PDF text extraction complete for %s: %d chars",
+            paper.paper_id,
+            len(extracted),
+        )
+        return extracted
+
+    if not settings.ocr_fallback_enabled:
+        logger.info(
+            "No embedded PDF text for %s and OCR fallback is disabled",
+            paper.paper_id,
+        )
+        return None
+
+    logger.info(
+        "No embedded PDF text for %s; attempting OCR fallback",
+        paper.paper_id,
+    )
+    return _run_ocr_on_paper(paper)
+
+
 def _step_ocr_gate(
     top_scores: list[InvestorScore],
     ocr_threshold: float,
@@ -286,15 +336,15 @@ def _step_ocr_gate(
             )
             continue
 
-        ocr_text = _run_ocr_on_paper(paper)
+        ocr_text = _extract_or_ocr_text(paper)
         if ocr_text:
             update_ocr_text(paper.paper_id, ocr_text)
             ocr_triggered.append(paper.paper_id)
             logger.info(
-                "OCR complete for %s: %d chars extracted", paper.paper_id, len(ocr_text)
+                "Text enrichment complete for %s: %d chars", paper.paper_id, len(ocr_text)
             )
         else:
-            logger.info("OCR yielded no text for %s", paper.paper_id)
+            logger.info("Text enrichment yielded no text for %s", paper.paper_id)
 
     logger.info("[Step 4 done] OCR completed for %d papers", len(ocr_triggered))
     return ocr_triggered
@@ -382,6 +432,8 @@ def run_pipeline(
         "year_from": year_from,
         "year_to": year_to,
         "ocr_threshold": ocr_threshold,
+        "ocr_fallback_enabled": settings.ocr_fallback_enabled,
+        "pdf_text_max_pages": settings.pdf_text_max_pages,
         "total_papers_ingested": len(paper_ids),
         "total_papers_passed_threshold": len(passed_scores),
         "total_embedded": n_embedded,
