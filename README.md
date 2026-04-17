@@ -13,6 +13,7 @@ End-to-end research pipeline for sourcing papers, building semantic memory, and 
 - [Project Structure](#project-structure)
 - [Installation](#installation)
 - [Configuration](#configuration)
+- [TL;DR Presets](#tldr-presets)
 - [Running The System](#running-the-system)
 - [How Ranking Works](#how-ranking-works)
 - [Threshold Gates](#threshold-gates)
@@ -130,6 +131,7 @@ Important values:
 | `OPENAI_SCORING_MODEL` | `gpt-4.1-mini` | LLM used for scoring |
 | `PAPER_PASS_THRESHOLD` | `0.65` | Minimum score to proceed |
 | `OCR_SCORE_THRESHOLD` | `0.6` | Minimum score to trigger OCR stage |
+| `recent_years` (CLI only) | unset | Restrict ingestion to last N years |
 | `EMBEDDING_BACKEND` | `fastembed` | `fastembed` or `openai` |
 | `QDRANT_URL` | empty | Empty = in-memory store |
 | `DB_PATH` | `./data/papers.db` | SQLite storage |
@@ -138,6 +140,36 @@ Notes:
 
 - If `OPENAI_API_KEY` is not set, ranking falls back to heuristic mode.
 - OCR runs only for passed papers that have OA PDFs.
+
+---
+
+## TL;DR Presets
+
+Use these as quick starting settings:
+
+### Balanced (default-ish)
+
+```bash
+uv run python -m orchestration.pipeline \
+  --query "solid-state battery electrolytes" \
+  --limit 30 \
+  --pass-threshold 0.65 \
+  --ocr-threshold 0.60 \
+  --recent-years 2 \
+  --top-k 8
+```
+
+### Low-filter (more papers pass)
+
+```bash
+uv run python -m orchestration.pipeline \
+  --query "solid-state battery electrolytes" \
+  --limit 30 \
+  --pass-threshold 0.55 \
+  --ocr-threshold 0.50 \
+  --recent-years 2 \
+  --top-k 8
+```
 
 ---
 
@@ -159,6 +191,7 @@ uv run python -m orchestration.pipeline \
   --limit 20 \
   --pass-threshold 0.65 \
   --ocr-threshold 0.6 \
+  --recent-years 2 \
   --top-k 10
 ```
 
@@ -254,8 +287,9 @@ uv run python -m memory_mcp.server
 uv run python -m orchestration.pipeline \
   --query "solid-state battery electrolytes" \
   --limit 30 \
-  --pass-threshold 0.72 \
-  --ocr-threshold 0.68 \
+  --pass-threshold 0.55 \
+  --ocr-threshold 0.50 \
+  --recent-years 2 \
   --top-k 8
 ```
 

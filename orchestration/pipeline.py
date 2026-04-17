@@ -59,17 +59,28 @@ from shared.vector_store import get_store
 
 # ── step implementations ──────────────────────────────────────────────────────
 
-def _step_ingest(query: str, limit: int) -> list[str]:
+def _step_ingest(
+    query: str,
+    limit: int,
+    year_from: Optional[int] = None,
+    year_to: Optional[int] = None,
+) -> list[str]:
     """Fetch and store metadata; return list of paper_ids."""
     from papers_mcp.semantic_scholar import SemanticScholarClient
     from papers_mcp.openalex import OpenAlexClient
     from shared.db import upsert_papers
 
-    logger.info("[Step 1] Ingesting metadata for query=%r limit=%d", query, limit)
+    logger.info(
+        "[Step 1] Ingesting metadata for query=%r limit=%d year_from=%s year_to=%s",
+        query,
+        limit,
+        year_from,
+        year_to,
+    )
     papers: list[Paper] = []
     try:
         s2 = SemanticScholarClient()
-        papers = s2.search(query, limit=limit)
+        papers = s2.search(query, limit=limit, year_from=year_from, year_to=year_to)
         logger.info("Semantic Scholar: %d papers", len(papers))
     except Exception as exc:
         logger.warning("S2 failed: %s", exc)
@@ -77,7 +88,12 @@ def _step_ingest(query: str, limit: int) -> list[str]:
     if len(papers) < limit // 2:
         try:
             oa = OpenAlexClient()
-            extra = oa.search(query, limit=limit - len(papers))
+            extra = oa.search(
+                query,
+                limit=limit - len(papers),
+                year_from=year_from,
+                year_to=year_to,
+            )
             seen = {p.paper_id for p in papers}
             papers.extend(p for p in extra if p.paper_id not in seen)
             logger.info("OpenAlex fallback added: %d papers", len(extra))
@@ -307,6 +323,7 @@ def run_pipeline(
     limit: int = 20,
     ocr_threshold: Optional[float] = None,
     pass_threshold: Optional[float] = None,
+    recent_years: Optional[int] = None,
     top_k: int = 10,
 ) -> PipelineRun:
     """Execute the full research intelligence pipeline.
@@ -316,6 +333,7 @@ def run_pipeline(
         limit:         Number of papers to ingest.
         ocr_threshold: Investor score threshold to trigger OCR (default from env).
         pass_threshold: Minimum novelty/value score required to continue.
+        recent_years:  Restrict ingestion to papers from last N years.
         top_k:         Number of papers to include in ranked output.
 
     Returns:
@@ -326,6 +344,14 @@ def run_pipeline(
         ocr_threshold = settings.ocr_score_threshold
     if pass_threshold is None:
         pass_threshold = settings.paper_pass_threshold
+    if recent_years is not None and recent_years < 1:
+        raise ValueError("recent_years must be >= 1 when provided.")
+
+    year_from: Optional[int] = None
+    year_to: Optional[int] = None
+    if recent_years is not None:
+        year_to = datetime.utcnow().year
+        year_from = year_to - recent_years + 1
 
     run_id = str(uuid.uuid4())[:8]
     started_at = datetime.utcnow()
@@ -333,7 +359,7 @@ def run_pipeline(
     save_pipeline_run(run_id, query, started_at.isoformat(), {})
 
     # Step 1: Ingest metadata.
-    paper_ids = _step_ingest(query, limit)
+    paper_ids = _step_ingest(query, limit, year_from=year_from, year_to=year_to)
 
     # Step 2: Embed.
     n_embedded = _step_embed(paper_ids)
@@ -368,6 +394,9 @@ def run_pipeline(
         "query": query,
         "limit": limit,
         "pass_threshold": pass_threshold,
+        "recent_years": recent_years,
+        "year_from": year_from,
+        "year_to": year_to,
         "ocr_threshold": ocr_threshold,
         "total_papers_ingested": len(paper_ids),
         "total_papers_passed_threshold": len(passed_scores),
@@ -408,6 +437,7 @@ if __name__ == "__main__":
     parser.add_argument("--limit", type=int, default=20, help="Papers to ingest")
     parser.add_argument("--ocr-threshold", type=float, default=None, help="OCR score threshold (0-1)")
     parser.add_argument("--pass-threshold", type=float, default=None, help="Score threshold required to proceed (0-1)")
+    parser.add_argument("--recent-years", type=int, default=None, help="Restrict ingestion to last N years")
     parser.add_argument("--top-k", type=int, default=10, help="Top papers to report")
     args = parser.parse_args()
 
@@ -416,6 +446,7 @@ if __name__ == "__main__":
         limit=args.limit,
         ocr_threshold=args.ocr_threshold,
         pass_threshold=args.pass_threshold,
+        recent_years=args.recent_years,
         top_k=args.top_k,
     )
     print(json.dumps({
@@ -423,6 +454,7 @@ if __name__ == "__main__":
         "query": result.query,
         "ingested": result.total_papers_ingested,
         "pass_threshold": args.pass_threshold if args.pass_threshold is not None else settings.paper_pass_threshold,
+        "recent_years": args.recent_years,
         "embedded": result.total_embedded,
         "ocr_triggered": result.ocr_triggered_for,
         "top_papers": [

@@ -206,9 +206,15 @@ Two thresholds are used in orchestration:
    - Applied only to already-passed papers.
    - Requires OA + PDF URL to trigger OCR.
 
+Optional time filter:
+
+3. **Recency filter** (`--recent-years`, CLI arg):
+   - Restricts ingestion to papers from the last N years.
+   - Example: `--recent-years 2` keeps only current + previous year.
+
 Pipeline sequence in `orchestration/pipeline.py`:
 
-1) ingest -> 2) embed -> 3) score all -> 4) filter by pass threshold -> 5) OCR gate -> 6) re-score OCR'd passed papers.
+1) ingest (optionally filtered by recent years) -> 2) embed -> 3) score all -> 4) filter by pass threshold -> 5) OCR gate -> 6) re-score OCR'd passed papers.
 
 ---
 
@@ -231,8 +237,9 @@ Useful CLI overrides:
 uv run python -m orchestration.pipeline \
   --query "battery materials" \
   --limit 30 \
-  --pass-threshold 0.7 \
-  --ocr-threshold 0.65
+  --pass-threshold 0.55 \
+  --ocr-threshold 0.50 \
+  --recent-years 2
 ```
 
 ---
