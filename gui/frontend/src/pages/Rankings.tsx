@@ -130,10 +130,13 @@ export function Rankings() {
             {sorted.map((s, i) => (
               <tr key={s.paper_id}>
                 <td>{i + 1}</td>
-                <td>
+                <td style={{ maxWidth: 340 }}>
                   <Link to={`/runs/${runId}/paper/${encodeURIComponent(s.paper_id)}`}>
-                    {s.paper_id}
+                    {s.title || s.paper_id}
                   </Link>
+                  {s.has_memo && (
+                    <span className="badge active" style={{ marginLeft: 6 }}>memo</span>
+                  )}
                 </td>
                 <td>{s.subfield || '—'}</td>
                 <td><strong>{s.composite.toFixed(1)}</strong></td>

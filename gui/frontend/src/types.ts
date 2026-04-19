@@ -16,12 +16,14 @@ export interface VCProfile {
 
 export interface TriageScore {
   paper_id: string
+  title: string
   vc_fit: number
   novelty: number
   credibility: number
   composite: number
   rationale: string
   subfield: string
+  has_memo: boolean
 }
 
 export interface RunRow {

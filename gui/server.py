@@ -137,6 +137,15 @@ def api_run(run_id: str) -> dict:
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     scores = [s.model_dump() for s in get_triage_scores(run_id)]
+    # Enrich scores with paper titles and whether deep analysis artefacts exist.
+    paper_ids = [s["paper_id"] for s in scores]
+    papers = get_papers_by_ids(paper_ids)
+    title_map = {p.paper_id: p.title for p in papers}
+    artifacts_dir = Path(run["artifacts_dir"])
+    for s in scores:
+        s["title"] = title_map.get(s["paper_id"], s["paper_id"])
+        paper_dir = artifacts_dir / s["paper_id"].replace(":", "_")
+        s["has_memo"] = (paper_dir / "judge_evaluation.json").exists()
     return {"run": run, "scores": scores}
 
 
