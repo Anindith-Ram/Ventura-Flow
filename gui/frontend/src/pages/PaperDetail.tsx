@@ -1,6 +1,15 @@
+import { marked } from 'marked'
 import { useEffect, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
 import { Link, useParams } from 'react-router-dom'
+
+function Prose({ children }: { children: string }) {
+  return (
+    <div
+      className="prose"
+      dangerouslySetInnerHTML={{ __html: marked(children) as string }}
+    />
+  )
+}
 import { api } from '../api'
 
 type JudgeEval = {
@@ -285,8 +294,8 @@ export function PaperDetail() {
                k === 'bear_critique.md' ? '🔴 Bear critique' :
                k === 'bull_brief.md' ? 'Bull research brief' : 'Bear research brief'}
             </summary>
-            <div className="prose" style={{ marginTop: 12 }}>
-              <ReactMarkdown>{String(artefacts[k])}</ReactMarkdown>
+            <div style={{ marginTop: 12 }}>
+              <Prose>{String(artefacts[k])}</Prose>
             </div>
           </details>
         ) : null,
