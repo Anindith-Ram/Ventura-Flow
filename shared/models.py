@@ -1,23 +1,30 @@
-"""Pydantic data models shared across all MCP servers."""
+"""Pydantic data models shared across the pipeline."""
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+
+# ── Authors ─────────────────────────────────────────────────────────────────
 
 class Author(BaseModel):
     name: str
     author_id: Optional[str] = None
     affiliations: list[str] = Field(default_factory=list)
+    h_index: Optional[int] = None
+    works_count: Optional[int] = None
+    cited_by_count: Optional[int] = None
 
+
+# ── Papers ──────────────────────────────────────────────────────────────────
 
 class Paper(BaseModel):
-    """Normalised paper record stored in SQLite + Qdrant."""
+    """Normalised paper record stored in SQLite."""
 
-    paper_id: str                                   # Semantic Scholar / internal ID
+    paper_id: str
     doi: Optional[str] = None
     title: str
     abstract: Optional[str] = None
@@ -26,32 +33,34 @@ class Paper(BaseModel):
     venue: Optional[str] = None
     url: Optional[str] = None
     pdf_url: Optional[str] = None
-    source: str = "unknown"                         # "semantic_scholar" | "openalex"
+    source: str = "openalex"
     citation_count: int = 0
     is_open_access: bool = False
     fields_of_study: list[str] = Field(default_factory=list)
-    ocr_text: Optional[str] = None
+    full_text: Optional[str] = None
     fetched_at: datetime = Field(default_factory=datetime.utcnow)
 
     @property
     def text_for_embedding(self) -> str:
-        """Concatenated text used for generating embeddings."""
         parts = [self.title]
         if self.abstract:
             parts.append(self.abstract)
-        if self.venue:
-            parts.append(self.venue)
         if self.fields_of_study:
             parts.append(" ".join(self.fields_of_study))
         return " ".join(parts)
 
+    @property
+    def max_author_h_index(self) -> int:
+        return max((a.h_index or 0) for a in self.authors) if self.authors else 0
+
     def to_db_row(self) -> dict[str, Any]:
+        import json as _json
         return {
             "paper_id": self.paper_id,
             "doi": self.doi,
             "title": self.title,
             "abstract": self.abstract,
-            "authors": "|".join(a.name for a in self.authors),
+            "authors_json": _json.dumps([a.model_dump() for a in self.authors]),
             "year": self.year,
             "venue": self.venue,
             "url": self.url,
@@ -60,10 +69,75 @@ class Paper(BaseModel):
             "citation_count": self.citation_count,
             "is_open_access": int(self.is_open_access),
             "fields_of_study": "|".join(self.fields_of_study),
-            "ocr_text": self.ocr_text,
+            "full_text": self.full_text,
             "fetched_at": self.fetched_at.isoformat(),
         }
 
+
+# ── VC profile ──────────────────────────────────────────────────────────────
+
+class VCProfile(BaseModel):
+    """Global VC preference profile — drives query planning and triage."""
+
+    # Thesis (freetext — Query Planner reasons about this)
+    thesis: str = ""
+    sectors: list[str] = Field(default_factory=list)
+    stage: Literal["pre-seed", "seed", "series-a", "series-b", "growth", "any"] = "any"
+    geography: list[str] = Field(default_factory=list)
+    deal_breakers: list[str] = Field(default_factory=list)
+
+    # Author weighting (0.0 = ignored, 1.0 = primary signal)
+    weight_vc_fit: float = 0.5
+    weight_novelty: float = 0.3
+    weight_author_credibility: float = 0.2
+    min_h_index: int = 0  # soft floor — not a hard filter
+
+    # Ingestion window
+    year_from: int = 2022
+    year_to: Optional[int] = None
+
+    # Template name (for the GUI preset dropdown)
+    template: Optional[str] = None
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ── Run config ──────────────────────────────────────────────────────────────
+
+class RunConfig(BaseModel):
+    """Per-run parameters (chosen in the GUI before Start)."""
+
+    mode: Literal["single", "autonomous"] = "single"
+    max_queries: int = 6
+    papers_per_query: int = 20
+    autonomous_time_limit_minutes: int = 60
+    autonomous_paper_cap: int = 200
+    bull_bear_for_top_k: int = 5  # only run deep analysis on top-K after triage
+
+
+# ── Triage ──────────────────────────────────────────────────────────────────
+
+class TriageScore(BaseModel):
+    paper_id: str
+    vc_fit: float        # 0-100
+    novelty: float       # 0-100
+    credibility: float   # 0-100
+    composite: float     # weighted sum, 0-100
+    rationale: str       # one-sentence "why"
+    subfield: str = ""   # for diversity
+
+
+# ── Events (for WebSocket streaming) ────────────────────────────────────────
+
+class PipelineEvent(BaseModel):
+    run_id: str
+    stage: str
+    level: Literal["info", "warn", "error", "success", "stage_start", "stage_end"] = "info"
+    message: str
+    data: dict = Field(default_factory=dict)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ── Run artefacts ───────────────────────────────────────────────────────────
 
 class IngestResult(BaseModel):
     total_fetched: int
@@ -72,44 +146,14 @@ class IngestResult(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
-class FeatureScores(BaseModel):
-    novelty: float = 0.0
-    investor_value: float = 0.0
-    buildability: float = 0.0
-    defensibility: float = 0.0
-    evidence_strength: float = 0.0
-    execution_risk: float = 0.0
-    conceptual_penalty: float = 0.0
-
-
-class InvestorScore(BaseModel):
-    paper_id: str
-    title: str
-    total_score: float                              # 0.0 – 1.0
-    confidence: float                               # 0.0 – 1.0
-    features: FeatureScores
-    top_signals: list[str] = Field(default_factory=list)
-    caveats: list[str] = Field(default_factory=list)
-    disclaimer: str = (
-        "⚠️  NOT INVESTMENT ADVICE. Scores reflect research signal patterns only."
-    )
-
-
-class ClusterResult(BaseModel):
-    cluster_id: int
-    size: int
-    representative_paper_ids: list[str]
-    top_terms: list[str] = Field(default_factory=list)
-
-
-class PipelineRun(BaseModel):
+class RunSummary(BaseModel):
     run_id: str
-    query: str
-    total_papers_ingested: int
-    total_papers_passed_threshold: int = 0
-    total_embedded: int
-    top_investor_papers: list[InvestorScore]
-    ocr_triggered_for: list[str]           # paper IDs that went through OCR
-    artifacts_dir: str
     started_at: datetime
     finished_at: Optional[datetime] = None
+    mode: Literal["single", "autonomous"]
+    queries_planned: int = 0
+    papers_ingested: int = 0
+    papers_passed_triage: int = 0
+    papers_deep_analyzed: int = 0
+    top_paper_ids: list[str] = Field(default_factory=list)
+    artifacts_dir: str = ""

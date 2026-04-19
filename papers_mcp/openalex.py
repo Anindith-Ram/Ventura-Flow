@@ -1,7 +1,7 @@
-"""OpenAlex API fallback client (no API key required).
+"""OpenAlex client — paper search + author enrichment (h-index, works count).
 
-Rate limit polite pool: add OPENALEX_EMAIL to env for higher limits.
-Docs: https://docs.openalex.org/
+OpenAlex is free and does not require an API key. Setting OPENALEX_EMAIL
+puts us in the polite pool for higher rate limits.
 """
 
 from __future__ import annotations
@@ -44,31 +44,29 @@ def _get(url: str, params: dict) -> httpx.Response:
         resp = client.get(url, params=params)
         if resp.status_code == 429:
             retry_after = int(resp.headers.get("Retry-After", "30"))
-            logger.warning("Rate-limited by OpenAlex; sleeping %ds", retry_after)
+            logger.warning("Rate-limited; sleeping %ds", retry_after)
             time.sleep(retry_after)
         resp.raise_for_status()
         return resp
 
 
 def _reconstruct_abstract(inv_index: Optional[dict]) -> Optional[str]:
-    """Reconstruct abstract from OpenAlex inverted index format."""
     if not inv_index:
         return None
-    word_positions: list[tuple[int, str]] = []
-    for word, positions in inv_index.items():
-        for pos in positions:
-            word_positions.append((pos, word))
-    word_positions.sort()
-    return " ".join(w for _, w in word_positions)
+    positions: list[tuple[int, str]] = []
+    for word, locs in inv_index.items():
+        for pos in locs:
+            positions.append((pos, word))
+    positions.sort()
+    return " ".join(w for _, w in positions)
 
 
-def _normalise(raw: dict) -> Optional[Paper]:
+def _normalise_work(raw: dict) -> Optional[Paper]:
     work_id = raw.get("id", "")
     title = raw.get("title") or ""
     if not work_id or not title:
         return None
 
-    # Use OpenAlex ID as the paper ID (stripped to just the key).
     paper_id = f"OA:{work_id.split('/')[-1]}"
     doi = raw.get("doi")
     if doi:
@@ -76,13 +74,13 @@ def _normalise(raw: dict) -> Optional[Paper]:
 
     abstract = _reconstruct_abstract(raw.get("abstract_inverted_index"))
 
-    raw_authors = raw.get("authorships") or []
-    authors = []
-    for a in raw_authors:
+    authors: list[Author] = []
+    for a in raw.get("authorships") or []:
         author = a.get("author") or {}
         institutions = [
             inst.get("display_name", "")
             for inst in (a.get("institutions") or [])
+            if inst.get("display_name")
         ]
         authors.append(
             Author(
@@ -98,7 +96,7 @@ def _normalise(raw: dict) -> Optional[Paper]:
 
     best_oa = raw.get("best_oa_location") or {}
     pdf_url = best_oa.get("pdf_url")
-    landing_url = (primary_loc.get("landing_page_url") or raw.get("id") or "")
+    landing_url = primary_loc.get("landing_page_url") or raw.get("id") or ""
 
     fields = [
         c.get("display_name", "")
@@ -124,12 +122,12 @@ def _normalise(raw: dict) -> Optional[Paper]:
 
 
 class OpenAlexClient:
-    """Thin synchronous wrapper around OpenAlex API."""
+    """Paper search + author metric enrichment."""
 
     def _params(self, extra: dict) -> dict:
-        p = {"mailto": settings.openalex_email, **extra}
-        return p
+        return {"mailto": settings.openalex_email, **extra}
 
+    # ── Paper search ────────────────────────────────────────────────────────
     def search(
         self,
         query: str,
@@ -137,7 +135,7 @@ class OpenAlexClient:
         year_from: Optional[int] = None,
         year_to: Optional[int] = None,
     ) -> list[Paper]:
-        filter_parts = [f"title.search:{query}"]
+        filter_parts = [f"title_and_abstract.search:{query}"]
         if year_from:
             filter_parts.append(f"publication_year:>{year_from - 1}")
         if year_to:
@@ -155,21 +153,75 @@ class OpenAlexClient:
             }
         )
         resp = _get(f"{_BASE}/works", params)
-        results_raw = resp.json().get("results") or []
-        papers = []
-        for raw in results_raw:
-            p = _normalise(raw)
+        results = resp.json().get("results") or []
+        papers: list[Paper] = []
+        for raw in results:
+            p = _normalise_work(raw)
             if p:
                 papers.append(p)
-        logger.info("OpenAlex search '%s': %d results", query, len(papers))
+        logger.info("OpenAlex '%s': %d results", query, len(papers))
         return papers
 
+    # ── Author enrichment ───────────────────────────────────────────────────
+    def enrich_authors(self, papers: list[Paper]) -> None:
+        """Populate h_index, works_count, cited_by_count for each author by id.
+
+        Mutates the papers list in place. Batched via OpenAlex filter.
+        """
+        author_ids: list[str] = []
+        for p in papers:
+            for a in p.authors:
+                if a.author_id:
+                    # OpenAlex author IDs look like "https://openalex.org/A1234..."; strip
+                    aid = a.author_id.split("/")[-1]
+                    author_ids.append(aid)
+        if not author_ids:
+            return
+
+        author_ids = list(dict.fromkeys(author_ids))  # dedupe, preserve order
+        metrics: dict[str, dict] = {}
+
+        # OpenAlex `filter=ids.openalex:A1|A2|...` supports batching.
+        batch_size = 50
+        for i in range(0, len(author_ids), batch_size):
+            batch = author_ids[i : i + batch_size]
+            params = self._params(
+                {
+                    "filter": f"ids.openalex:{'|'.join(batch)}",
+                    "per-page": batch_size,
+                    "select": "id,summary_stats,works_count,cited_by_count",
+                }
+            )
+            try:
+                resp = _get(f"{_BASE}/authors", params)
+                for a in resp.json().get("results") or []:
+                    aid = a["id"].split("/")[-1]
+                    stats = a.get("summary_stats") or {}
+                    metrics[aid] = {
+                        "h_index": stats.get("h_index"),
+                        "works_count": a.get("works_count"),
+                        "cited_by_count": a.get("cited_by_count"),
+                    }
+            except Exception as exc:
+                logger.warning("Author enrichment batch failed: %s", exc)
+
+        for p in papers:
+            for a in p.authors:
+                if not a.author_id:
+                    continue
+                aid = a.author_id.split("/")[-1]
+                m = metrics.get(aid)
+                if m:
+                    a.h_index = m["h_index"]
+                    a.works_count = m["works_count"]
+                    a.cited_by_count = m["cited_by_count"]
+
+    # ── Single-paper fetch ──────────────────────────────────────────────────
     def get_paper(self, paper_id_or_doi: str) -> Optional[Paper]:
         if paper_id_or_doi.startswith("10."):
             url = f"{_BASE}/works/https://doi.org/{paper_id_or_doi}"
         elif paper_id_or_doi.startswith("OA:"):
-            oa_id = paper_id_or_doi[3:]
-            url = f"{_BASE}/works/{oa_id}"
+            url = f"{_BASE}/works/{paper_id_or_doi[3:]}"
         else:
             url = f"{_BASE}/works/{paper_id_or_doi}"
         try:
@@ -178,4 +230,4 @@ class OpenAlexClient:
             if exc.response.status_code == 404:
                 return None
             raise
-        return _normalise(resp.json())
+        return _normalise_work(resp.json())

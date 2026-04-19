@@ -1,410 +1,222 @@
 # Research Intelligence Pipeline
 
-End-to-end research pipeline for sourcing papers, building semantic memory, and ranking papers by **novelty + buildability + IP/investor value** using an LLM rubric.
+End-to-end pipeline that ingests scientific papers, triages them against a VC's
+thesis using local LLM agents, and produces investment memos via a bull/bear
+debate — all running locally on Ollama with a React GUI on top.
 
-> **Disclaimer:** Outputs are diligence signals only and are **NOT investment advice**.
-
----
-
-## Contents
-
-- [Bull/Bear Research Pipeline](#bullbear-research-pipeline)
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [TL;DR Presets](#tldr-presets)
-- [Running The System](#running-the-system)
-- [How Ranking Works](#how-ranking-works)
-- [Threshold Gates](#threshold-gates)
-- [MCP Tool Reference](#mcp-tool-reference)
-- [End-to-End Example](#end-to-end-example)
-- [Troubleshooting](#troubleshooting)
+> **Disclaimer:** outputs are diligence signals only, **not investment advice**.
 
 ---
 
-## Bull/Bear Research Pipeline
+## What it does
 
-A 4-agent LLM debate system that produces VC-grade investment memos for a research paper or signal. Runs **fully locally** via [Ollama](https://ollama.com) with Metal acceleration and Q4 quantization — no Colab, no GPU cloud, no API keys.
+1. **Plan queries** from the VC's thesis (not random keywords) — the Query
+   Planner agent reasons about sectors, stage, and geography to emit tailored
+   OpenAlex queries. In autonomous mode it tracks angles already covered and
+   proposes fresh ones each round.
+2. **Ingest metadata** from OpenAlex (author h-index / works_count enrichment
+   included).
+3. **Dedup** via fastembed cosine similarity on title+abstract.
+4. **Agentic triage** — a Triage Agent scores every paper on
+   `vc_fit / novelty / author_credibility` with a rationale. No keyword rubric.
+5. **Percentile gate + diversity cap** — keep the top 10% by composite score,
+   enforcing a per-subfield cap so a single topic cannot dominate the top list.
+6. **Deep ingestion (PDF → text)** runs only for papers that pass the gate.
+7. **Bull / bear / judge** debate on the top-K passing papers produces
+   investability scores and a memo pack (PDF export).
 
-### Architecture
-
-```text
-paper JSON
-    │
-    ├─► Bull Researcher (qwen3:8b)  ──► DDG search ──► Bull Brief
-    │                                                       │
-    └─► Bear Researcher (qwen3:8b)  ──► DDG search ──► Bear Brief
-                                                            │
-    ┌───────────────────────────────────────────────────────┘
-    │
-    ├─► Bull Analyst (deepseek-r1:14b) ──► Investment Thesis   ─┐
-    └─► Bear Analyst (deepseek-r1:14b) ──► Bear Critique        ├─► outputs/
-                                                                 │
-    Judge Agent (llama3.1:8b) ──► Investability Score + Memo  ──┘
-```
-
-### Models (M4 Mac, 24 GB unified memory)
-
-| Agent | Model | Size | Notes |
-|-------|-------|------|-------|
-| Researcher (Bull + Bear) | `qwen3:8b` | 5.2 GB | Already installed; 131K context |
-| Analyst (Bull + Bear) | `deepseek-r1:14b` | ~8.5 GB | Reasoning model; distilled from R1 |
-| Judge | `llama3.1:8b` | 4.9 GB | Already installed |
-
-All models use Q4_K_M quantization and Metal GPU acceleration automatically via Ollama. Models load sequentially — peak memory usage is ~8.5 GB, well within the 20 GB available after macOS overhead.
-
-### Prerequisites
-
-1. [Install Ollama](https://ollama.com/download)
-2. Pull the analyst model (one-time, ~8.5 GB download):
-   ```bash
-   ollama pull deepseek-r1:14b
-   ```
-3. Confirm researchers and judge are present:
-   ```bash
-   ollama list  # should show qwen3:8b and llama3.1:8b
-   ```
-
-### Running the Full Pipeline
-
-```bash
-# Both branches (default)
-python pipeline.py
-
-# One branch only
-python pipeline.py --agent bull
-python pipeline.py --agent bear
-
-# Skip web search (faster, no DDG calls)
-python pipeline.py --no-search
-
-# Dry run — prints prompts, no model calls
-python pipeline.py --dry-run
-
-# Reuse last research briefs, re-run analysts only
-python pipeline.py --skip-research
-
-# Custom paper input
-python pipeline.py --input my_paper.json
-```
-
-Artifacts are written to `outputs/` with a timestamped run ID prefix.
-
-### Running Agents Individually
-
-Each agent can be run standalone for iteration and debugging:
-
-**Researchers** (query generation → web search → brief synthesis):
-```bash
-python agents/bull_researcher.py [--paper sample_input.json] [--no-search] [--output-dir outputs/]
-python agents/bear_researcher.py [--paper sample_input.json] [--no-search] [--output-dir outputs/]
-```
-
-**Analysts** (thesis/critique from paper + brief):
-```bash
-# Uses the latest brief in output-dir automatically
-python agents/bull_analyst.py [--paper sample_input.json] [--output-dir outputs/]
-python agents/bear_analyst.py [--paper sample_input.json] [--output-dir outputs/]
-
-# Or point to a specific brief
-python agents/bull_analyst.py --paper sample_input.json --brief outputs/20240101_120000_bull_brief.md
-```
-
-### Output Artifacts
-
-| File | Contents |
-|------|----------|
-| `{run_id}_{side}_queries.json` | Search queries generated by researcher |
-| `{run_id}_{side}_search_raw.json` | Raw DuckDuckGo results |
-| `{run_id}_{side}_brief.md` | Synthesized research brief |
-| `{run_id}_bull_thesis.md` | Bull investment thesis |
-| `{run_id}_bear_critique.md` | Bear adversarial critique |
-
----
-
-## Overview
-
-This project has three MCP servers plus one orchestrator:
-
-- `papers_mcp`: ingest metadata from Semantic Scholar / OpenAlex
-- `memory_mcp`: generate embeddings and semantic retrieval
-- `investor_signal_mcp`: LLM-based novelty/IP/value scoring
-- `orchestration/pipeline.py`: full run orchestration with threshold gates + OCR stage
-
-The ranking system is intentionally designed to avoid pure bibliometric ranking.  
-It focuses on:
-
-- novelty vs incremental work
-- practical buildability
-- evidence quality
-- defensibility / moat / potential IP value
-- execution risk and conceptual-only penalties
+A FastAPI backend + React frontend provide a terminal-style live dashboard,
+global VC profile management, and a full run history browser.
 
 ---
 
 ## Architecture
 
 ```text
-papers_mcp              memory_mcp               investor_signal_mcp
-    |                       |                            |
-    v                       v                            v
-Semantic Scholar        Embeddings + Qdrant        LLM novelty/IP/value evaluator
-OpenAlex                semantic retrieval         + penalties for risk/conceptuality
-    |                       |                            |
-    +-----------------------+----------------------------+
-                            |
-                       SQLite (papers.db)
-                            |
-                   orchestration/pipeline.py
-                            |
-                 optional OCR enrichment (PaddleOCR MCP)
+                ┌──────────────────────────────────────┐
+                │  React GUI (Vite)                    │
+                │   Home / Preferences / Filters       │
+                │   Rankings / Past Runs / Paper View  │
+                └─────────────┬────────────────────────┘
+                              │ REST + WebSocket
+                ┌─────────────▼────────────────────────┐
+                │  gui/server.py  (FastAPI)            │
+                └─────────────┬────────────────────────┘
+                              │
+   ┌──────────────────────────▼───────────────────────────┐
+   │  orchestration/pipeline.py  +  orchestration/autonomous.py
+   │                                                      │
+   │  Query Planner → OpenAlex → Dedup → Triage Agent     │
+   │     → Percentile + Diversity Gate → PDF Ingest       │
+   │     → Bull/Bear Researcher → Analyst → Judge         │
+   └──────────────────────────┬───────────────────────────┘
+                              │ events
+                     orchestration/events.py  (pub/sub)
+                              │
+                     SQLite (data/papers.db)
+                     Artifacts (outputs/{run_id}/)
+                     Profile (~/.research_pipeline/vc_profile.json)
 ```
+
+All agents run on **Ollama** with local Q4 quantized models:
+
+| Agent | Model |
+|-------|-------|
+| Planner / Triage / Researchers | `qwen3:8b` |
+| Analysts | `deepseek-r1:14b` |
+| Judge | `llama3.1:8b` |
 
 ---
 
-## Project Structure
+## Project layout
 
 ```text
-shared/
-  config.py
-  models.py
-  db.py
-  embeddings.py
-  vector_store.py
-
-papers_mcp/
-  server.py
-  semantic_scholar.py
-  openalex.py
-
-memory_mcp/
-  server.py
-
-investor_signal_mcp/
-  server.py
-
+pipeline.py                ← top-level launcher (GUI + CLI)
+shared/                    ← config, models, db, embeddings, VC profile
+papers_mcp/openalex.py     ← OpenAlex client (no Semantic Scholar)
+agents/
+  query_planner.py         ← thesis-aware query generation
+  triage_agent.py          ← agentic VC-fit / novelty / credibility scorer
+  bull_researcher.py       ← + bear_researcher / bull_analyst / bear_analyst / judge_agent
 orchestration/
-  pipeline.py
-
-scripts/
-  test_pipeline.py
+  pipeline.py              ← PipelineRunner.run_once
+  autonomous.py            ← time/paper-cap loop with exclude_angles
+  dedup.py                 ← cosine-based paper dedup
+  diversity.py             ← percentile + subfield cap selection
+  deep_ingest.py           ← PDF → text for passing papers
+  events.py                ← event bus (terminal + WS subscribers)
+gui/
+  server.py                ← FastAPI backend + WebSocket /ws/events
+  pdf_export.py            ← memo pack generation (ReportLab)
+  frontend/                ← React + Vite + TypeScript
+tools/                     ← ollama + ddg search helpers
+outputs/                   ← per-run artifacts
+data/                      ← SQLite + downloaded PDFs
 ```
 
 ---
 
-## Installation
+## Quick start (after cloning)
 
-### Option A: `uv` (recommended)
+Prerequisites: [Ollama](https://ollama.com/download), [uv](https://github.com/astral-sh/uv), [Node.js](https://nodejs.org) (v18+).
 
 ```bash
-cd "Project Personal"
+# 1. Python deps
 uv sync
+
+# 2. Pull Ollama models (one-time, ~15 GB total)
+ollama pull qwen3:8b
+ollama pull deepseek-r1:14b
+ollama pull llama3.1:8b
+
+# 3. Build the React frontend (one-time, or after any frontend change)
+cd gui/frontend
+npm install
+npm run build
+cd ../..
+
+# 4. Launch
+uv run python pipeline.py
 ```
 
-### Option B: `pip` + `requirements.txt`
+The browser opens to `http://127.0.0.1:8000`. Fill in your VC profile, then
+hit **Start run**.
+
+> `data/`, `logs/`, and `gui/frontend/dist/` are gitignored, so every new
+> clone needs steps 1–3 above. Steps 1 and 3 only need re-running if
+> `pyproject.toml` or frontend source files change.
+
+Environment is optional — defaults work out of the box. See `shared/config.py`
+for all knobs (`TRIAGE_TOP_PERCENTILE`, `DIVERSITY_MAX_PER_SUBFIELD`,
+`AUTONOMOUS_DEFAULT_MINUTES`, etc.).
+
+---
+
+## Running
+
+### GUI (recommended)
 
 ```bash
-cd "Project Personal"
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+uv run python pipeline.py
+```
+
+Opens `http://127.0.0.1:8000`. Edit the VC profile, pick a template, then
+**Start run** from the Home page. Events stream to the embedded terminal and
+the Rankings page updates live.
+
+### CLI (headless)
+
+```bash
+# Single round with the saved profile
+uv run python pipeline.py --cli single
+
+# Autonomous mode — runs until time-limit OR paper-cap hits
+uv run python pipeline.py --cli autonomous
+
+# GUI without opening a browser tab
+uv run python pipeline.py --no-browser
 ```
 
 ---
 
-## Configuration
+## How triage works
 
-Copy and edit environment file:
+For each paper the Triage Agent returns:
 
-```bash
-cp .env.example .env
-```
+- `vc_fit` (0–100) — alignment with thesis, sectors, stage, deal-breakers
+- `novelty` (0–100) — originality vs incremental
+- `credibility` (0–100) — author track record (h-index works as a modifier, not
+  a filter, so breakthrough papers from junior researchers still surface)
+- `subfield` — used by the diversity gate
+- `rationale` — one or two sentences, shown as a tooltip in the Rankings UI
 
-Important values:
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `OPENAI_API_KEY` | empty | Enables LLM novelty scoring |
-| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible endpoint |
-| `OPENAI_SCORING_MODEL` | `gpt-4.1-mini` | LLM used for scoring |
-| `PAPER_PASS_THRESHOLD` | `0.65` | Minimum score to proceed |
-| `OCR_SCORE_THRESHOLD` | `0.6` | Minimum score to trigger OCR stage |
-| `recent_years` (CLI only) | unset | Restrict ingestion to last N years |
-| `EMBEDDING_BACKEND` | `fastembed` | `fastembed` or `openai` |
-| `QDRANT_URL` | empty | Empty = in-memory store |
-| `DB_PATH` | `./data/papers.db` | SQLite storage |
-
-Notes:
-
-- If `OPENAI_API_KEY` is not set, ranking falls back to heuristic mode.
-- OCR runs only for passed papers that have OA PDFs.
+Composite = weighted sum (weights normalised on save in the Filters page). The
+top 10% by composite go through, with a per-subfield cap and a minimum floor
+so you always get at least a few papers even when a run returns few results.
 
 ---
 
-## TL;DR Presets
+## Autonomous mode
 
-Use these as quick starting settings:
+Loops rounds until **either** the time limit or the paper cap is hit. Each
+round:
 
-### Balanced (default-ish)
+1. Planner emits N queries, **excluding** angles covered in prior rounds.
+2. Ingest → dedup → triage the new papers (already-scored papers are skipped).
+3. At the end of the run, deep analysis (bull/bear/judge) runs on the overall
+   top-K across every round.
 
-```bash
-uv run python -m orchestration.pipeline \
-  --query "solid-state battery electrolytes" \
-  --limit 30 \
-  --pass-threshold 0.65 \
-  --ocr-threshold 0.60 \
-  --recent-years 2 \
-  --top-k 8
-```
-
-### Low-filter (more papers pass)
-
-```bash
-uv run python -m orchestration.pipeline \
-  --query "solid-state battery electrolytes" \
-  --limit 30 \
-  --pass-threshold 0.55 \
-  --ocr-threshold 0.50 \
-  --recent-years 2 \
-  --top-k 8
-```
+Progress, time remaining, and papers-so-far stream to the Terminal.
 
 ---
 
-## Running The System
+## Artifacts per run
 
-### Start MCP servers individually
-
-```bash
-uv run python -m papers_mcp.server
-uv run python -m memory_mcp.server
-uv run python -m investor_signal_mcp.server
+```
+outputs/{run_id}/
+  {paper_id_safe}/
+    bull_brief.md
+    bear_brief.md
+    bull_thesis.md
+    bear_critique.md
+    judge_evaluation.json
+    pitch_deck.json
 ```
 
-### Run full orchestration pipeline
-
-```bash
-uv run python -m orchestration.pipeline \
-  --query "RNA therapeutics" \
-  --limit 20 \
-  --pass-threshold 0.65 \
-  --ocr-threshold 0.6 \
-  --recent-years 2 \
-  --top-k 10
-```
-
-### Run smoke test
-
-```bash
-uv run python scripts/test_pipeline.py --query "CRISPR delivery" --limit 20
-```
-
----
-
-## How Ranking Works
-
-Ranking is implemented in `investor_signal_mcp/server.py`.
-
-For each paper, an evaluator prompt scores:
-
-- `novelty` (25%)
-- `investor_value` (23%)
-- `buildability` (22%)
-- `defensibility` (16%)
-- `evidence_strength` (14%)
-
-Then subtracts penalties:
-
-- `execution_risk` (-12%)
-- `conceptual_penalty` (-18%)
-
-Final score is clamped to `0..1`.
-
-The rubric checks include:
-
-- Is this genuinely new or just incremental?
-- Can it be built in a practical horizon?
-- Is there implementation detail, not just concept?
-- Is there strong evidence (benchmarks/prototypes/trials)?
-- Is there credible IP/moat and investor value path?
-- Are blockers (regulatory, manufacturing, dependencies) severe?
-
----
-
-## Threshold Gates
-
-Pipeline gating in `orchestration/pipeline.py`:
-
-1. Ingest papers
-2. Embed papers
-3. Score all papers
-4. Keep only papers with `score >= PAPER_PASS_THRESHOLD`
-5. On passed papers, OCR papers with `score >= OCR_SCORE_THRESHOLD` and OA PDF
-6. Re-score OCR-enriched papers
-7. Output top passed papers
-
-This ensures low-signal papers are filtered early.
-
----
-
-## MCP Tool Reference
-
-### `papers` server
-
-- `search_papers(query, limit, year_from?, year_to?)`
-- `get_paper_details(paper_id_or_doi)`
-- `ingest_metadata(query, limit, filters?)`
-- `ingest_by_ids(ids[])`
-
-### `memory` server
-
-- `embed_and_store_papers(paper_ids[])`
-- `semantic_search(query, top_k)`
-- `find_similar_papers(paper_id, top_k)`
-- `cluster_topics(min_cluster_size?, n_clusters?)`
-- `get_paper_feature_vector(paper_id)`
-
-### `investor_signal` server
-
-- `score_investor_relevance(paper_id)`
-- `rank_papers_for_investor(query, top_k, pass_threshold?)`
-- `explain_score(paper_id)`
-
----
-
-## End-to-End Example
-
-```bash
-# 1) Ingest papers
-uv run python -m papers_mcp.server
-
-# 2) Embed papers
-uv run python -m memory_mcp.server
-
-# 3) Run full pipeline with strict threshold
-uv run python -m orchestration.pipeline \
-  --query "solid-state battery electrolytes" \
-  --limit 30 \
-  --pass-threshold 0.55 \
-  --ocr-threshold 0.50 \
-  --recent-years 2 \
-  --top-k 8
-```
+A memo-pack PDF containing the top K evaluated papers can be exported from
+the Rankings page or from `GET /api/runs/{run_id}/export.pdf?top_k=10`.
 
 ---
 
 ## Troubleshooting
 
-- **Vector store empty**
-  - Run embedding step first (`embed_and_store_papers([])`).
-- **LLM scoring falls back to heuristic**
-  - Check `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and model name.
-- **No papers pass threshold**
-  - Lower `PAPER_PASS_THRESHOLD` slightly (e.g. `0.65 -> 0.58`).
-- **No OCR triggered**
-  - Ensure papers have OA `pdf_url` and pass OCR threshold.
-- **Rate-limit errors from sources**
-  - Configure `S2_API_KEY` and use retries/backoff.
+- **`HTTP 404` from Ollama** — the required model isn't pulled. Run
+  `ollama pull qwen3:8b` (and the other two).
+- **GUI shows "frontend not built yet"** — run `npm run build` inside
+  `gui/frontend/`.
+- **No papers surface** — broaden the thesis, widen `year_from`, or relax the
+  deal-breakers; the percentile gate is adaptive but still needs a usable
+  ingest pool.
+- **Run seems stuck** — the Terminal and the `/api/run/status` endpoint show
+  the active stage. Bull/bear/judge takes the longest because three model
+  families load sequentially.

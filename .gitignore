@@ -14,3 +14,6 @@ logs/
 .DS_Store
 *.pdf
 models/
+node_modules/
+outputs/
+research_outputs/

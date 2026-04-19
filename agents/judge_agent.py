@@ -15,8 +15,9 @@ import json
 import logging
 from datetime import datetime
 
-from graph.state import AgentState
 from tools.llm import call_llm
+
+AgentState = dict  # legacy alias; judge_agent treats state as a dict throughout.
 
 logger = logging.getLogger(__name__)
 JUDGE_MODEL = "llama3.1:8b"
