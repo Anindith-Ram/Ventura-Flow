@@ -49,12 +49,28 @@ def generate_queries(paper: dict, logger=None) -> list[str]:
         if logger: logger(f"[{AGENT_NAME}] {msg}")
 
     log("Generating search queries...")
-    user_msg = (
+    base_msg = (
+        "/no_think\n"
         "PHASE: QUERY_GENERATION\n\n"
+        "IMPORTANT: Respond with ONLY the JSON block below. No summary, no explanation, no markdown prose.\n\n"
         f"paper:\n```json\n{json.dumps(paper, indent=2)}\n```"
     )
-    raw = call_llm(MODEL, BULL_RESEARCHER_SYSTEM_PROMPT, user_msg, temperature=0.3)
-    queries = _parse_queries(raw)
+    raw = call_llm(MODEL, BULL_RESEARCHER_SYSTEM_PROMPT, base_msg, temperature=0.3)
+    try:
+        queries = _parse_queries(raw)
+    except ValueError:
+        # Retry once with an even more explicit prompt
+        log("Query parse failed — retrying with stricter prompt")
+        retry_msg = (
+            "/no_think\n"
+            "OUTPUT ONLY THIS JSON. DO NOT WRITE ANYTHING ELSE.\n\n"
+            f'{{"queries": ["<query 1>", "<query 2>", "<query 3>", "<query 4>", "<query 5>", "<query 6>"]}}\n\n'
+            "Replace the placeholders with real search queries for this paper:\n\n"
+            f"Title: {paper.get('title', '')}\n"
+            f"Abstract: {(paper.get('abstract') or '')[:400]}"
+        )
+        raw2 = call_llm(MODEL, BULL_RESEARCHER_SYSTEM_PROMPT, retry_msg, temperature=0.1)
+        queries = _parse_queries(raw2)
     log(f"Generated {len(queries)} queries")
     return queries
 
