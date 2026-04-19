@@ -10,7 +10,21 @@ type SortKey = 'composite' | 'vc_fit' | 'novelty' | 'credibility'
 export function Rankings() {
   const { runId: paramId } = useParams<{ runId: string }>()
   const { events, activeRunId } = useEventStream()
-  const runId = paramId && paramId !== 'latest' ? paramId : activeRunId
+  const [fallbackRunId, setFallbackRunId] = useState<string | null>(null)
+
+  // When 'latest' is requested but there's no active run, use the most recent
+  // completed run from history.
+  useEffect(() => {
+    if (paramId !== 'latest' || activeRunId) return
+    api.listRuns().then((runs) => {
+      if (runs.length > 0) setFallbackRunId(runs[0].run_id)
+    })
+  }, [paramId, activeRunId])
+
+  const runId =
+    paramId && paramId !== 'latest'
+      ? paramId
+      : activeRunId ?? fallbackRunId
 
   const [run, setRun] = useState<RunRow | null>(null)
   const [scores, setScores] = useState<TriageScore[]>([])
@@ -58,7 +72,7 @@ export function Rankings() {
     return (
       <div>
         <h2>Rankings</h2>
-        <p className="sub">No active run. Start one from the home page to see live rankings.</p>
+        <p className="sub">No runs yet. Start one from the home page.</p>
         <Link to="/">← Home</Link>
       </div>
     )
