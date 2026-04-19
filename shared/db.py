@@ -60,8 +60,16 @@ CREATE TABLE IF NOT EXISTS runs (
     vc_profile_json   TEXT
 );
 
+CREATE TABLE IF NOT EXISTS watchlist (
+    paper_id   TEXT PRIMARY KEY,
+    added_at   TEXT NOT NULL,
+    note       TEXT,
+    source_run TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_triage_run ON triage_scores(run_id, composite DESC);
 CREATE INDEX IF NOT EXISTS idx_runs_started ON runs(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_watchlist_added ON watchlist(added_at DESC);
 """
 
 
@@ -180,6 +188,49 @@ def get_run(run_id: str) -> Optional[dict]:
     with _conn() as conn:
         row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
     return dict(row) if row else None
+
+
+def get_run_score_distribution(run_id: str, limit: int = 20) -> list[float]:
+    """Top-N composite scores for this run, descending. Used for sparklines."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT composite FROM triage_scores WHERE run_id = ? "
+            "ORDER BY composite DESC LIMIT ?",
+            (run_id, limit),
+        ).fetchall()
+    return [float(r["composite"]) for r in rows]
+
+
+# ── Watchlist ───────────────────────────────────────────────────────────────
+
+def add_to_watchlist(paper_id: str, note: str | None = None, source_run: str | None = None) -> None:
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO watchlist (paper_id, added_at, note, source_run) "
+            "VALUES (?, ?, ?, ?)",
+            (paper_id, datetime.utcnow().isoformat(), note, source_run),
+        )
+
+
+def remove_from_watchlist(paper_id: str) -> None:
+    with _conn() as conn:
+        conn.execute("DELETE FROM watchlist WHERE paper_id = ?", (paper_id,))
+
+
+def is_watchlisted(paper_id: str) -> bool:
+    with _conn() as conn:
+        row = conn.execute("SELECT 1 FROM watchlist WHERE paper_id = ?", (paper_id,)).fetchone()
+    return row is not None
+
+
+def list_watchlist() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT w.paper_id, w.added_at, w.note, w.source_run, p.title "
+            "FROM watchlist w LEFT JOIN papers p ON p.paper_id = w.paper_id "
+            "ORDER BY w.added_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ── Row → model ─────────────────────────────────────────────────────────────

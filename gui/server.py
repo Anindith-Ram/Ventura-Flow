@@ -22,11 +22,16 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from shared.config import settings
-from shared.db import get_paper, get_papers_by_ids, get_run, get_triage_scores, init_db, list_runs
-from shared.models import PipelineEvent, RunConfig, VCProfile
+from shared.db import (
+    add_to_watchlist, get_paper, get_papers_by_ids, get_run,
+    get_run_score_distribution, get_triage_scores, init_db,
+    is_watchlisted, list_runs, list_watchlist, remove_from_watchlist,
+)
+from shared.models import Paper, PipelineEvent, RunConfig, VCProfile
 from shared.vc_profile import TEMPLATES, load_profile, save_profile
 
 from orchestration.autonomous import run_autonomous
+from orchestration.digest import post_digest
 from orchestration.events import get_bus
 from orchestration.pipeline import PipelineRunner
 from gui.pdf_export import export_run_pdf
@@ -128,6 +133,9 @@ def api_run_status() -> dict:
 @app.get("/api/runs")
 def api_runs(limit: int = 50) -> list[dict]:
     runs = list_runs(limit)
+    # Enrich with top-N composite distribution for sparklines.
+    for r in runs:
+        r["score_distribution"] = get_run_score_distribution(r["run_id"], limit=20)
     return runs
 
 
@@ -171,7 +179,100 @@ def api_run_paper(run_id: str, paper_id: str) -> dict:
                 artefacts[name] = json.loads(fp.read_text())
             except Exception:
                 artefacts[name] = None
-    return {"paper": paper.model_dump(mode="json"), "artefacts": artefacts}
+    return {
+        "paper": paper.model_dump(mode="json"),
+        "artefacts": artefacts,
+        "watchlisted": is_watchlisted(paper_id),
+    }
+
+
+# ── Re-analyze a single paper (bull/bear/judge) ─────────────────────────────
+
+class ReanalyzePayload(BaseModel):
+    # Placeholder for future model override — currently re-runs with defaults.
+    note: Optional[str] = None
+
+
+@app.post("/api/runs/{run_id}/paper/{paper_id}/reanalyze")
+async def api_reanalyze_paper(run_id: str, paper_id: str, payload: ReanalyzePayload) -> dict:
+    global _active_task
+    if _active_task and not _active_task.done():
+        raise HTTPException(status_code=409, detail="Another run is active — cancel it first")
+
+    run = get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    paper = get_paper(paper_id)
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    paper_dir = Path(run["artifacts_dir"]) / paper_id.replace(":", "_")
+    paper_dir.mkdir(parents=True, exist_ok=True)
+
+    runner = _get_runner()
+
+    async def _task() -> None:
+        try:
+            await runner._emit(run_id, "analysis", f"Re-running analysis on {paper.title[:70]}", "stage_start")
+            await runner._run_bull_bear_judge(run_id, paper, paper_dir)
+            await runner._emit(run_id, "analysis", "Re-analysis complete", "stage_end")
+        except Exception as exc:
+            await runner._emit(run_id, "analysis", f"Re-analysis failed: {exc}", "error")
+
+    _active_task = asyncio.create_task(_task())
+    return {"ok": True, "run_id": run_id, "paper_id": paper_id}
+
+
+# ── Watchlist ───────────────────────────────────────────────────────────────
+
+class WatchlistPayload(BaseModel):
+    note: Optional[str] = None
+    source_run: Optional[str] = None
+
+
+@app.get("/api/watchlist")
+def api_watchlist() -> list[dict]:
+    return list_watchlist()
+
+
+@app.post("/api/watchlist/{paper_id}")
+def api_watchlist_add(paper_id: str, payload: WatchlistPayload) -> dict:
+    add_to_watchlist(paper_id, note=payload.note, source_run=payload.source_run)
+    return {"ok": True, "watchlisted": True}
+
+
+@app.delete("/api/watchlist/{paper_id}")
+def api_watchlist_remove(paper_id: str) -> dict:
+    remove_from_watchlist(paper_id)
+    return {"ok": True, "watchlisted": False}
+
+
+# ── Digest webhook test ─────────────────────────────────────────────────────
+
+@app.post("/api/digest/test")
+def api_digest_test() -> dict:
+    profile = load_profile()
+    if not profile.digest_webhook_url:
+        raise HTTPException(status_code=400, detail="No digest webhook URL set in profile")
+    runs = list_runs(limit=1)
+    if not runs:
+        raise HTTPException(status_code=400, detail="No runs available to digest")
+    latest = runs[0]
+    from shared.models import RunSummary
+    summary = RunSummary(
+        run_id=latest["run_id"],
+        started_at=datetime.fromisoformat(latest["started_at"]),
+        finished_at=datetime.fromisoformat(latest["finished_at"]) if latest.get("finished_at") else None,
+        mode=latest["mode"],
+        queries_planned=latest.get("queries_planned") or 0,
+        papers_ingested=latest.get("papers_ingested") or 0,
+        papers_passed_triage=latest.get("papers_passed_triage") or 0,
+        papers_deep_analyzed=latest.get("papers_deep_analyzed") or 0,
+        top_paper_ids=(latest.get("top_paper_ids") or "").split("|") if latest.get("top_paper_ids") else [],
+        artifacts_dir=latest.get("artifacts_dir") or "",
+    )
+    ok = post_digest(profile, summary)
+    return {"ok": ok}
 
 
 @app.get("/api/runs/{run_id}/export.pdf")

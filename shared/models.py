@@ -100,6 +100,11 @@ class VCProfile(BaseModel):
     year_from: int = 2022
     year_to: Optional[int] = None
 
+    # Post-run digest: if set, POSTs a summary JSON to this URL when an
+    # autonomous/single run finishes. Compatible with Slack incoming webhooks
+    # (if the URL contains 'slack.com', payload shape is a Slack message).
+    digest_webhook_url: Optional[str] = None
+
     # Template name (for the GUI preset dropdown)
     template: Optional[str] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)

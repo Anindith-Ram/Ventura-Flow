@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { BarChart3, History, Home as HomeIcon, Settings, Sliders, Sparkles } from 'lucide-react'
+import { BarChart3, History, Home as HomeIcon, Settings, Sliders, Sparkles, Star } from 'lucide-react'
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthorFilters } from './pages/AuthorFilters'
 import { Home } from './pages/Home'
@@ -7,6 +7,7 @@ import { PaperDetail } from './pages/PaperDetail'
 import { PastRuns } from './pages/PastRuns'
 import { Preferences } from './pages/Preferences'
 import { Rankings } from './pages/Rankings'
+import { Watchlist } from './pages/Watchlist'
 import { useProfile } from './store'
 
 const nav = [
@@ -14,6 +15,7 @@ const nav = [
   { to: '/profile', label: 'Preferences', icon: Settings },
   { to: '/filters', label: 'Weights', icon: Sliders },
   { to: '/rankings/latest', label: 'Rankings', icon: BarChart3 },
+  { to: '/watchlist', label: 'Watchlist', icon: Star },
   { to: '/runs', label: 'Past Runs', icon: History },
 ]
 
@@ -79,6 +81,7 @@ function AnimatedRoutes() {
           <Route path="/filters" element={<AuthorFilters />} />
           <Route path="/rankings/:runId" element={<Rankings />} />
           <Route path="/runs" element={<PastRuns />} />
+          <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/runs/:runId/paper/:paperId" element={<PaperDetail />} />
           <Route path="*" element={<div>Not found.</div>} />
         </Routes>

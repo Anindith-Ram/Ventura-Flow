@@ -39,6 +39,7 @@ from shared.models import (
 
 from orchestration.dedup import dedupe_papers
 from orchestration.deep_ingest import ingest_full_text
+from orchestration.digest import post_digest
 from orchestration.diversity import select_top
 from orchestration.events import EventBus, get_bus, make_event
 
@@ -272,6 +273,14 @@ class PipelineRunner:
             f"Run complete — {len(top_paper_results)} memos in {artifacts_dir}",
             "success", artifacts_dir=str(artifacts_dir),
         )
+
+        if profile.digest_webhook_url:
+            sent = await asyncio.to_thread(post_digest, profile, summary)
+            if sent:
+                await self._emit(run_id, "run", "Digest posted to webhook", "success")
+            else:
+                await self._emit(run_id, "run", "Digest webhook failed", "warn")
+
         return summary
 
     # ── Bull / Bear / Judge ──────────────────────────────────────────────────

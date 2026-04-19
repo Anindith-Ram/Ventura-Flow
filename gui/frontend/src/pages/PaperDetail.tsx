@@ -1,9 +1,12 @@
 import { motion } from 'framer-motion'
-import { ChevronLeft, ExternalLink, FileText } from 'lucide-react'
+import { ChevronLeft, ExternalLink, FileText, RefreshCw } from 'lucide-react'
 import { marked } from 'marked'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
+import { AuthorHoverCard } from '../components/AuthorHoverCard'
+import { CountUp } from '../components/CountUp'
+import { StarButton } from '../components/StarButton'
 
 function Prose({ children }: { children: string }) {
   return (
@@ -114,17 +117,39 @@ export function PaperDetail() {
   const { runId, paperId } = useParams<{ runId: string; paperId: string }>()
   const [paper, setPaper] = useState<any | null>(null)
   const [artefacts, setArtefacts] = useState<Record<string, any>>({})
+  const [watchlisted, setWatchlisted] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [reanalyzing, setReanalyzing] = useState(false)
 
   useEffect(() => {
     if (!runId || !paperId) return
-    api
+    let cancelled = false
+    const load = () => api
       .getPaper(runId, paperId)
-      .then((r) => { setPaper(r.paper); setArtefacts(r.artefacts); setErr(null) })
-      .catch((e) => setErr(e.message))
-      .finally(() => setLoading(false))
+      .then((r) => {
+        if (cancelled) return
+        setPaper(r.paper); setArtefacts(r.artefacts); setWatchlisted(r.watchlisted); setErr(null)
+      })
+      .catch((e) => !cancelled && setErr(e.message))
+      .finally(() => !cancelled && setLoading(false))
+    load()
+    return () => { cancelled = true }
   }, [runId, paperId])
+
+  async function handleReanalyze() {
+    if (!runId || !paperId) return
+    if (!confirm('Re-run bull/bear/judge on this paper? Takes 1–3 minutes.')) return
+    setReanalyzing(true)
+    try {
+      await api.reanalyzePaper(runId, paperId)
+      alert('Re-analysis started. Refresh in a minute or two to see updated results.')
+    } catch (e: any) {
+      alert(`Failed: ${e.message}`)
+    } finally {
+      setReanalyzing(false)
+    }
+  }
 
   if (loading) return <div className="sub">Loading…</div>
   if (err) return <div style={{ color: 'var(--berry)' }}>{err}</div>
@@ -140,10 +165,24 @@ export function PaperDetail() {
           <Link to={`/rankings/${runId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 8 }}>
             <ChevronLeft size={14} strokeWidth={2.5} /> Rankings
           </Link>
-          <h2 style={{ marginBottom: 6 }}>{paper.title}</h2>
-          <div className="sub">
-            {(paper.authors || []).map((a: any) => a.name).join(', ') || 'Unknown authors'} ·{' '}
-            {paper.year ?? '—'} · {paper.venue || paper.source || ''}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <h2 style={{ marginBottom: 6, flex: 1 }}>{paper.title}</h2>
+            <StarButton paperId={paperId!} runId={runId} initial={watchlisted} size={20} onChange={setWatchlisted} />
+          </div>
+          <div className="sub" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'baseline' }}>
+            {(paper.authors || []).length === 0
+              ? <span>Unknown authors</span>
+              : (paper.authors || []).map((a: any, i: number) => (
+                  <span key={i}>
+                    <AuthorHoverCard author={a} />
+                    {i < paper.authors.length - 1 && <span style={{ marginRight: 2 }}>,</span>}
+                  </span>
+                ))
+            }
+            <span style={{ margin: '0 4px' }}>·</span>
+            <span>{paper.year ?? '—'}</span>
+            <span style={{ margin: '0 4px' }}>·</span>
+            <span>{paper.venue || paper.source || ''}</span>
           </div>
           <div className="row" style={{ marginTop: 12 }}>
             {paper.url && (
@@ -156,6 +195,14 @@ export function PaperDetail() {
                 <FileText size={12} strokeWidth={2} /> PDF
               </a>
             )}
+            <button
+              onClick={handleReanalyze}
+              disabled={reanalyzing}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '6px 12px' }}
+            >
+              <RefreshCw size={12} strokeWidth={2} className={reanalyzing ? 'spin' : ''} />
+              {reanalyzing ? 'Starting…' : 'Re-analyze'}
+            </button>
           </div>
         </div>
       </div>
@@ -180,7 +227,7 @@ export function PaperDetail() {
                   letterSpacing: '-0.03em',
                 }}
               >
-                {judge.investability_score}
+                <CountUp to={judge.investability_score} duration={1400} />
               </motion.div>
               <div>
                 <div style={{

@@ -1,8 +1,28 @@
-import { Check } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Check, Send } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api'
 import { useProfile } from '../store'
 import type { VCProfile } from '../types'
+
+const INVESTOR_CUES = [
+  'invest', 'capital', 'stage', 'seed', 'series', 'market', 'moat', 'scale',
+  'defensibility', 'ip', 'patent', 'commercial', 'revenue', 'customer',
+  'regulatory', 'barrier', 'edge', 'traction', 'founder', 'team',
+]
+
+function thesisHealth(thesis: string): { label: string; color: string; score: number; hint: string } {
+  const words = thesis.trim().split(/\s+/).filter(Boolean).length
+  const lower = thesis.toLowerCase()
+  const cues = INVESTOR_CUES.filter((c) => lower.includes(c)).length
+  const score = Math.min(100, words * 1.2 + cues * 8)
+  if (words < 20) {
+    return { label: 'Too thin', color: 'var(--berry)', score, hint: 'Under 20 words — queries will be generic. Describe sectors, what edge looks like, and what signals you.' }
+  }
+  if (words < 50 || cues < 3) {
+    return { label: 'Workable', color: 'var(--sun)', score, hint: 'Add concrete investor framing — what would make a paper signal for you?' }
+  }
+  return { label: 'Strong', color: 'var(--seaweed)', score, hint: `${words} words · ${cues} investor cues — planner will generate rich queries.` }
+}
 
 function ChipList({
   value, onChange, placeholder,
@@ -40,6 +60,98 @@ function ChipList({
           }}
         />
         <button onClick={add}>Add</button>
+      </div>
+    </div>
+  )
+}
+
+function ThesisCard({ thesis, onChange }: { thesis: string; onChange: (v: string) => void }) {
+  const health = useMemo(() => thesisHealth(thesis), [thesis])
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+        <h3 style={{ margin: 0 }}>Thesis</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '3px 10px', borderRadius: 999,
+            background: `color-mix(in srgb, ${health.color} 15%, transparent)`,
+            border: `1px solid ${health.color}`,
+            color: health.color,
+            fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: health.color }} />
+            {health.label}
+          </span>
+        </div>
+      </div>
+      <textarea
+        value={thesis}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Describe what your firm invests in, how you think about edge, and what would make a research paper signal for you. The Query Planner reasons about this directly."
+        style={{ minHeight: 150 }}
+      />
+      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="bar" style={{ flex: 1 }}>
+          <div
+            className="bar-fill"
+            style={{
+              width: `${health.score}%`,
+              background: `linear-gradient(90deg, var(--sun), ${health.color})`,
+              transition: 'width 0.4s',
+            }}
+          />
+        </div>
+        <span className="sub" style={{ fontSize: 12, minWidth: 280, textAlign: 'right' }}>
+          {health.hint}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function WebhookCard({
+  value, onChange,
+}: { value: string | null; onChange: (v: string | null) => void }) {
+  const [testing, setTesting] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  async function test() {
+    setTesting(true); setMsg(null)
+    try {
+      const r = await api.testDigest()
+      setMsg(r.ok ? 'Sent ✓' : 'Webhook responded with failure')
+    } catch (e: any) {
+      setMsg(e.message)
+    } finally {
+      setTesting(false)
+      setTimeout(() => setMsg(null), 3500)
+    }
+  }
+  return (
+    <div className="card">
+      <h3>Post-run digest</h3>
+      <p className="sub" style={{ textTransform: 'none', letterSpacing: 0, marginBottom: 12 }}>
+        When a run finishes, POST a summary of the top papers to a webhook URL.
+        Slack webhooks (URL contains <code>slack.com</code>) get formatted blocks;
+        any other URL receives a raw JSON payload.
+      </p>
+      <label>Webhook URL</label>
+      <input
+        type="url"
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value || null)}
+        placeholder="https://hooks.slack.com/services/..."
+      />
+      <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button
+          onClick={test}
+          disabled={!value || testing}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          <Send size={13} strokeWidth={2} />
+          {testing ? 'Sending…' : 'Send test digest'}
+        </button>
+        {msg && <span className="sub" style={{ fontSize: 12 }}>{msg}</span>}
       </div>
     </div>
   )
@@ -129,15 +241,7 @@ export function Preferences() {
         </p>
       </div>
 
-      <div className="card">
-        <h3>Thesis</h3>
-        <textarea
-          value={profile.thesis}
-          onChange={(e) => update('thesis', e.target.value)}
-          placeholder="Describe what your firm invests in, how you think about edge, and what would make a research paper signal for you. The Query Planner reasons about this directly."
-          style={{ minHeight: 150 }}
-        />
-      </div>
+      <ThesisCard thesis={profile.thesis} onChange={(v) => update('thesis', v)} />
 
       <div className="grid-2">
         <div className="card">
@@ -192,6 +296,11 @@ export function Preferences() {
           </div>
         </div>
       </div>
+
+      <WebhookCard
+        value={profile.digest_webhook_url}
+        onChange={(v) => update('digest_webhook_url', v)}
+      />
     </div>
   )
 }

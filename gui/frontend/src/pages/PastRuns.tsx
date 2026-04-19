@@ -3,6 +3,7 @@ import { Download, ExternalLink } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api'
+import { Sparkline } from '../components/Sparkline'
 import type { RunRow } from '../types'
 
 function formatDate(iso: string | null): string {
@@ -61,6 +62,7 @@ export function PastRuns() {
                 <th style={{ textAlign: 'right' }}>Ingested</th>
                 <th style={{ textAlign: 'right' }}>Triaged</th>
                 <th style={{ textAlign: 'right' }}>Deep</th>
+                <th>Top scores</th>
                 <th></th>
               </tr>
             </thead>
@@ -86,6 +88,9 @@ export function PastRuns() {
                   <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.papers_ingested}</td>
                   <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.papers_passed_triage}</td>
                   <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.papers_deep_analyzed}</td>
+                  <td>
+                    <Sparkline values={r.score_distribution ?? []} />
+                  </td>
                   <td style={{ textAlign: 'right' }}>
                     <a href={api.exportPdfUrl(r.run_id, 10)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                       <Download size={12} strokeWidth={2} /> PDF

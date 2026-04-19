@@ -103,7 +103,7 @@ export function Home() {
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       >
         <div className="greet">
-          {firstName ? `${greeting}, ${firstName}` : 'Welcome'}
+          {greeting}
         </div>
         <h1>
           {firstName ? <>Welcome back, <span className="accent">{firstName}</span>.</> : <>Find the <span className="accent">next breakthrough</span>.</>}

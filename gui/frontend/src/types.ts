@@ -1,6 +1,7 @@
 export interface VCProfile {
   user_name: string
   firm_name: string
+  digest_webhook_url: string | null
   thesis: string
   sectors: string[]
   stage: 'pre-seed' | 'seed' | 'series-a' | 'series-b' | 'growth' | 'any'
@@ -39,6 +40,15 @@ export interface RunRow {
   papers_deep_analyzed: number
   top_paper_ids: string
   artifacts_dir: string
+  score_distribution?: number[]
+}
+
+export interface WatchlistRow {
+  paper_id: string
+  title: string | null
+  added_at: string
+  note: string | null
+  source_run: string | null
 }
 
 export interface PipelineEvent {

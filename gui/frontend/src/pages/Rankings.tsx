@@ -3,7 +3,9 @@ import { ArrowDown, ChevronLeft, Download } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
+import { CountUp } from '../components/CountUp'
 import { PipelineStages } from '../components/PipelineStages'
+import { StarButton } from '../components/StarButton'
 import { useEventStream } from '../store'
 import type { RunRow, TriageScore } from '../types'
 
@@ -131,6 +133,7 @@ export function Rankings() {
           <thead>
             <tr>
               <th style={{ width: 32 }}>#</th>
+              <th style={{ width: 32 }}></th>
               <th>Paper</th>
               <th>Subfield</th>
               {(['composite', 'vc_fit', 'novelty', 'credibility'] as SortKey[]).map((k) => (
@@ -162,6 +165,9 @@ export function Rankings() {
                   <td style={{ color: 'var(--muted)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                     {i + 1}
                   </td>
+                  <td>
+                    <StarButton paperId={s.paper_id} runId={runId} initial={false} size={14} />
+                  </td>
                   <td style={{ maxWidth: 380 }}>
                     <Link to={`/runs/${runId}/paper/${encodeURIComponent(s.paper_id)}`}>
                       {s.title || s.paper_id}
@@ -172,7 +178,9 @@ export function Rankings() {
                   </td>
                   <td className="sub">{s.subfield || '—'}</td>
                   <td>
-                    <span className={`score-pill ${c}`}>{s.composite.toFixed(0)}</span>
+                    <span className={`score-pill ${c}`}>
+                      <CountUp to={s.composite} duration={900} />
+                    </span>
                   </td>
                   <td>{s.vc_fit.toFixed(0)}</td>
                   <td>{s.novelty.toFixed(0)}</td>
@@ -185,7 +193,7 @@ export function Rankings() {
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={8} className="sub" style={{ textAlign: 'center', padding: 32 }}>
+                <td colSpan={9} className="sub" style={{ textAlign: 'center', padding: 32 }}>
                   No triage scores yet.
                 </td>
               </tr>
