@@ -306,32 +306,23 @@ select{font-family:inherit;font-size:12px;cursor:pointer}
               <input type="text" id="discQuery" placeholder="e.g. solid-state battery electrolytes" style="font-family:inherit">
             </div>
             <div class="fld">
-              <label>Papers</label>
-              <select id="discLimit">
-                <option value="10">10</option>
-                <option value="20" selected>20</option>
-                <option value="30">30</option>
-                <option value="50">50</option>
-              </select>
+              <label>Papers to fetch</label>
+              <input type="number" id="discLimit" min="1" max="100" value="20" style="width:70px">
             </div>
             <div class="fld">
-              <label>Min Score</label>
-              <select id="discThresh">
-                <option value="0.4">0.40</option>
-                <option value="0.5" selected>0.50</option>
-                <option value="0.55">0.55</option>
-                <option value="0.65">0.65</option>
-              </select>
+              <label>Top K results</label>
+              <input type="number" id="discTopK" min="1" max="100" value="10" style="width:70px">
+            </div>
+            <div class="fld">
+              <label>Min Score (0–1)</label>
+              <input type="number" id="discThresh" min="0" max="1" step="0.05" value="0.45" style="width:70px">
             </div>
             <div class="fld">
               <label>Recent Years</label>
-              <select id="discYears">
-                <option value="">Any year</option>
-                <option value="1">Last 1 yr</option>
-                <option value="2" selected>Last 2 yrs</option>
-                <option value="3">Last 3 yrs</option>
-                <option value="5">Last 5 yrs</option>
-              </select>
+              <input type="number" id="discYears" min="1" max="50" value="5" style="width:70px">
+              <label style="font-size:11px;margin-top:4px;display:flex;align-items:center;gap:4px">
+                <input type="checkbox" id="discAnyYear" onchange="document.getElementById('discYears').disabled=this.checked"> Any year
+              </label>
             </div>
           </div>
           <div class="btn-row" style="margin-top:0;max-width:430px">
@@ -721,12 +712,13 @@ async function startDiscover(andAnalyzeTop = false) {
   });
   ['da-1','da-2'].forEach(id => document.getElementById(id).classList.remove('active'));
 
+  const anyYear = document.getElementById('discAnyYear').checked;
   const body = {
     query: q,
-    limit: parseInt(document.getElementById('discLimit').value),
-    pass_threshold: parseFloat(document.getElementById('discThresh').value),
-    top_k: 10,
-    recent_years: document.getElementById('discYears').value ? parseInt(document.getElementById('discYears').value) : null,
+    limit: parseInt(document.getElementById('discLimit').value) || 20,
+    pass_threshold: parseFloat(document.getElementById('discThresh').value) || 0.45,
+    top_k: parseInt(document.getElementById('discTopK').value) || 10,
+    recent_years: anyYear ? null : (parseInt(document.getElementById('discYears').value) || null),
     vc_profile: document.getElementById('vcProfile').value.trim(),
   };
 
@@ -751,8 +743,9 @@ function handleDiscoverEvent(evt) {
       updateDiscStep(evt.step, evt.status, evt.label, evt.count);
       break;
     case 'discover_complete':
-      document.getElementById('discStatus').textContent = `${evt.passed} papers passed threshold out of ${evt.total_ingested} fetched.`;
-      renderPaperCards(evt.papers);
+      document.getElementById('discStatus').textContent =
+        `${evt.passed_count} of ${evt.total_ingested} fetched papers passed your threshold of ${evt.pass_threshold}. Showing top ${evt.total_shown}. Scorer: ${evt.scorer_used || 'heuristic'}.`;
+      renderPaperCards(evt.papers, evt.passed_count, evt.pass_threshold, evt.score_distribution);
       setDiscoverButtons(false);
       if (discEs) { discEs.close(); discEs = null; }
       if (autoAnalyzeTopPaper && evt.papers && evt.papers.length) {
@@ -787,23 +780,47 @@ function updateDiscStep(step, status, label, count) {
   }
 }
 
-function renderPaperCards(papers) {
+function renderPaperCards(papers, passedCount, threshold, distribution) {
   const root = document.getElementById('papersRoot');
   if (!papers || !papers.length) {
-    root.innerHTML = '<div class="empty"><div class="ei">🔎</div><div class="el">No papers passed the threshold</div><div class="eh">Try lowering the Min Score or broadening the query</div></div>';
+    root.innerHTML = '<div class="empty"><div class="ei">🔎</div><div class="el">No papers found</div><div class="eh">Try a different query or remove the year filter</div></div>';
     return;
   }
-  root.innerHTML = `<div style="font-size:12px;color:var(--muted);margin-bottom:6px">${papers.length} paper${papers.length!==1?'s':''} ranked by VC investability score</div>
-  <div class="papers-grid">${papers.map((p, i) => paperCard(p, i+1)).join('')}</div>`;
+
+  const aboveThreshold = (passedCount !== undefined ? passedCount : papers.filter(p => p.passes_threshold !== false).length);
+  const total = papers.length;
+  const thresh = threshold !== undefined ? threshold : null;
+
+  let bannerHtml = '';
+  if (thresh !== null) {
+    if (aboveThreshold === 0) {
+      bannerHtml = `<div style="background:rgba(255,80,80,.12);border:1px solid var(--bear);border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:10px">
+        ⚠ <strong>0 of ${total} papers passed your threshold of ${thresh}.</strong> Showing all ${total} below-threshold results. Try lowering Min Score.
+        ${distribution ? `<span style="color:var(--muted)"> &nbsp;·&nbsp; Scores: min=${distribution.min}, median=${distribution.median}, max=${distribution.max}</span>` : ''}
+      </div>`;
+    } else {
+      bannerHtml = `<div style="background:rgba(80,200,120,.08);border:1px solid var(--bull);border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:10px">
+        ✓ <strong>${aboveThreshold} of ${total} papers passed your threshold of ${thresh}.</strong> Showing all ${total} ranked results.
+        ${distribution ? `<span style="color:var(--muted)"> &nbsp;·&nbsp; Scores: min=${distribution.min}, median=${distribution.median}, max=${distribution.max}</span>` : ''}
+      </div>`;
+    }
+  }
+
+  root.innerHTML = bannerHtml +
+    `<div class="papers-grid">${papers.map((p, i) => paperCard(p, i+1, thresh)).join('')}</div>`;
 }
 
-function paperCard(p, rank) {
+function paperCard(p, rank, threshold) {
   const sc = p.score;
   const cls = scClassFrac(sc);
   const fillPct = Math.round(sc * 100);
+  const belowThresh = threshold !== null && threshold !== undefined && sc < threshold;
   const titleHtml = p.url
     ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>`
     : esc(p.title);
+  const threshBadge = belowThresh
+    ? `<span style="font-size:10px;background:rgba(255,80,80,.15);color:var(--bear);border-radius:4px;padding:1px 5px;margin-left:6px">below threshold</span>`
+    : `<span style="font-size:10px;background:rgba(80,200,120,.15);color:var(--bull);border-radius:4px;padding:1px 5px;margin-left:6px">✓ passes</span>`;
 
   const feats = p.features || {};
   const featItems = [
@@ -817,11 +834,11 @@ function paperCard(p, rank) {
   const signals = (p.top_signals||[]).map(s => `<span class="signal-tag">${esc(s.slice(0,60))}</span>`).join('');
   const caveats = (p.caveats||[]).map(s => `<span class="caveat-tag">⚠ ${esc(s.slice(0,50))}</span>`).join('');
 
-  return `<div class="paper-card">
+  return `<div class="paper-card" style="${belowThresh ? 'opacity:0.75;' : ''}">
     <div class="paper-card-top">
       <div class="paper-rank">#${rank}</div>
       <div class="paper-info">
-        <div class="paper-title">${titleHtml}</div>
+        <div class="paper-title">${titleHtml}${threshBadge}</div>
         <div class="paper-meta">
           ${p.venue ? `<span>📍 ${esc(p.venue)}</span>` : ''}
           ${p.year ? `<span>📅 ${p.year}</span>` : ''}
@@ -973,6 +990,21 @@ function renderAdj(adj) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 refreshHistory();
+
+// Hydrate discover form defaults from backend once on load
+(async function hydrateDefaults() {
+  try {
+    const r = await fetch('/api/defaults');
+    if (!r.ok) return;
+    const d = await r.json();
+    const thresh = document.getElementById('discThresh');
+    const topK = document.getElementById('discTopK');
+    const years = document.getElementById('discYears');
+    if (thresh && d.pass_threshold !== undefined) thresh.value = d.pass_threshold;
+    if (topK && d.top_k !== undefined) topK.value = d.top_k;
+    if (years && d.recent_years !== undefined) years.value = d.recent_years;
+  } catch(e) { /* non-fatal — fields have hardcoded fallback values */ }
+})();
 </script>
 </body>
 </html>

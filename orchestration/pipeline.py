@@ -164,7 +164,8 @@ def _step_rank(
         scores[0].total_score if scores else 0,
         scores[-1].total_score if scores else 0,
     )
-    return scores[:top_k]
+    # Return all scores sorted; callers apply threshold and top_k themselves
+    return scores
 
 
 def _download_pdf(paper: Paper) -> Optional[Path]:
@@ -386,14 +387,15 @@ def run_pipeline(
     # Step 2: Embed.
     n_embedded = _step_embed(paper_ids)
 
-    # Step 3: Rank by novelty / investor value, then threshold-gate.
+    # Step 3: Rank by novelty / investor value. Keep all for observability; gate OCR by threshold.
     all_scores = _step_rank(paper_ids, top_k=len(paper_ids), vc_profile=vc_profile)
     passed_scores = [s for s in all_scores if s.total_score >= pass_threshold]
-    top_scores = passed_scores[:top_k]
+    # top_scores for reporting always shows top_k regardless of threshold
+    top_scores = all_scores[:top_k]
     passed_ids = [s.paper_id for s in passed_scores]
     logger.info(
-        "[Step 3 gate] pass_threshold=%.2f; %d/%d papers pass to next stage",
-        pass_threshold, len(passed_scores), len(all_scores),
+        "[Step 3 gate] pass_threshold=%.2f; %d/%d papers pass threshold (showing top %d regardless)",
+        pass_threshold, len(passed_scores), len(all_scores), min(top_k, len(all_scores)),
     )
 
     # Step 4: Conditional OCR.

@@ -43,6 +43,12 @@ class Settings:
     pdf_download_dir: str
     paddleocr_command: str
 
+    # ── Scoring backend ──────────────────────────────────────────────────────
+    scorer_backend: str   # "ollama" | "openai" | "heuristic"
+    scorer_model: str
+    default_top_k: int
+    default_recent_years: int
+
     # ── Logging ───────────────────────────────────────────────────────────────
     log_level: str
     log_dir: str
@@ -67,9 +73,14 @@ class Settings:
 
         self.ocr_score_threshold = float(os.getenv("OCR_SCORE_THRESHOLD", "0.6"))
         self.ocr_max_pages = int(os.getenv("OCR_MAX_PAGES", "0"))
-        self.paper_pass_threshold = float(os.getenv("PAPER_PASS_THRESHOLD", "0.65"))
+        self.paper_pass_threshold = float(os.getenv("PAPER_PASS_THRESHOLD", "0.45"))
         self.pdf_download_dir = os.getenv("PDF_DOWNLOAD_DIR", str(_ROOT / "data" / "pdfs"))
         self.paddleocr_command = os.getenv("PADDLEOCR_COMMAND", "paddleocr_mcp")
+
+        self.scorer_backend = os.getenv("SCORER_BACKEND", "ollama")
+        self.scorer_model = os.getenv("SCORER_MODEL", "llama3.1:8b")
+        self.default_top_k = int(os.getenv("DEFAULT_TOP_K", "10"))
+        self.default_recent_years = int(os.getenv("DEFAULT_RECENT_YEARS", "5"))
 
         self.log_level = os.getenv("LOG_LEVEL", "INFO")
         self.log_dir = os.getenv("LOG_DIR", str(_ROOT / "logs"))

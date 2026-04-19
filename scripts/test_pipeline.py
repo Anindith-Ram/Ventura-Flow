@@ -191,14 +191,77 @@ def main(query: str = SAMPLE_QUERY, limit: int = 20, ocr_threshold: float = 0.55
     console.print("[dim]Note: OCR not executed in this test to avoid heavy compute.[/]")
     console.print("[dim]Run orchestration.pipeline.run_pipeline() for full OCR execution.[/]")
 
-    # ── Summary ───────────────────────────────────────────────────────────────
+    # ── Summary ──────────────────────────��────────────────────────────────────
     _section("Summary")
     console.print(f"  Papers ingested : [bold]{len(papers)}[/]")
     console.print(f"  Papers embedded : [bold]{len(papers)}[/]")
     console.print(f"  Vector store    : [bold]{store.count()} points[/]")
     console.print(f"  Top inv score   : [bold]{scored[0].total_score:.4f}[/] ({scored[0].title[:50]})")
     console.print(f"  OCR candidates  : [bold]{len(ocr_candidates)}[/] (score >= {ocr_threshold})")
-    console.print("\n[green bold]All steps completed successfully.[/]")
+    console.print(f"  Scorer used     : [bold]{scored[0].scorer_used}[/]")
+
+    # ── Assertions ────────────────────��──────────────────────────────��────────
+    _section("Assertions")
+    failures = []
+
+    if len(papers) == 0:
+        failures.append("FAIL: No papers were ingested")
+    else:
+        console.print(f"[green]PASS[/] Ingested {len(papers)} papers")
+
+    if len(vectors) != len(papers):
+        failures.append(f"FAIL: Embedded {len(vectors)} vectors but ingested {len(papers)} papers")
+    else:
+        console.print(f"[green]PASS[/] Embedded all {len(vectors)} papers")
+
+    if not scored:
+        failures.append("FAIL: No papers were scored")
+    else:
+        console.print(f"[green]PASS[/] Scored {len(scored)} papers")
+
+    # At least one paper should score >= 0.45 for a substantive query like AlphaFold/LLM
+    pass_threshold = 0.45
+    passed = [s for s in scored if s.total_score >= pass_threshold]
+    if query in ("large language models code generation", SAMPLE_QUERY) or "alphafold" in query.lower():
+        if not passed:
+            failures.append(
+                f"FAIL: 0 of {len(scored)} papers passed threshold {pass_threshold}. "
+                f"Score distribution: min={scored[-1].total_score:.3f}, "
+                f"max={scored[0].total_score:.3f}. Scorer: {scored[0].scorer_used}"
+            )
+        else:
+            console.print(f"[green]PASS[/] {len(passed)}/{len(scored)} papers passed threshold {pass_threshold}")
+
+    # Scores must be in [0, 1]
+    out_of_range = [s for s in scored if not (0.0 <= s.total_score <= 1.0)]
+    if out_of_range:
+        failures.append(f"FAIL: {len(out_of_range)} scores out of [0, 1] range")
+    else:
+        console.print(f"[green]PASS[/] All scores in [0.0, 1.0] range")
+
+    # Scores must be sorted descending
+    sort_violations = [(i, scored[i].total_score, scored[i+1].total_score)
+                       for i in range(len(scored)-1) if scored[i].total_score < scored[i+1].total_score]
+    if sort_violations:
+        failures.append(f"FAIL: Scores not sorted descending at indices {sort_violations[:3]}")
+    else:
+        console.print(f"[green]PASS[/] Scores sorted descending")
+
+    # scorer_used must be a known value
+    known_scorers = {"ollama", "openai", "heuristic"}
+    bad_scorers = [s for s in scored if s.scorer_used not in known_scorers]
+    if bad_scorers:
+        failures.append(f"FAIL: Unknown scorer_used values: {set(s.scorer_used for s in bad_scorers)}")
+    else:
+        console.print(f"[green]PASS[/] All scorer_used values valid ({set(s.scorer_used for s in scored[:3])})")
+
+    if failures:
+        console.print("\n[red bold]FAILURES:[/]")
+        for f in failures:
+            console.print(f"  [red]{f}[/]")
+        sys.exit(1)
+    else:
+        console.print("\n[green bold]All assertions passed.[/]")
 
 
 if __name__ == "__main__":

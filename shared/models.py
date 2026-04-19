@@ -90,6 +90,7 @@ class InvestorScore(BaseModel):
     features: FeatureScores
     top_signals: list[str] = Field(default_factory=list)
     caveats: list[str] = Field(default_factory=list)
+    scorer_used: str = "heuristic"                 # "ollama" | "openai" | "heuristic"
     disclaimer: str = (
         "⚠️  NOT INVESTMENT ADVICE. Scores reflect research signal patterns only."
     )

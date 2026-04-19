@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT))
 from dotenv import load_dotenv
 load_dotenv(ROOT / ".env")
 
+from shared.config import settings
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -294,12 +295,34 @@ def _discover_worker(
             vc_profile=vc_profile,
         )
         passed = [s for s in all_scores if s.total_score >= pass_threshold]
-        top = passed[:top_k]
+        # Always show top_k regardless of threshold — GUI renders passes_threshold flag
+        top = all_scores[:top_k]
+
+        # Score distribution for observability
+        raw_scores = [s.total_score for s in all_scores]
+        if raw_scores:
+            import statistics
+            sorted_scores = sorted(raw_scores)
+            n = len(sorted_scores)
+            score_distribution = {
+                "min": round(sorted_scores[0], 3),
+                "median": round(statistics.median(sorted_scores), 3),
+                "p90": round(sorted_scores[int(n * 0.9)], 3),
+                "max": round(sorted_scores[-1], 3),
+                "total_scored": n,
+            }
+        else:
+            score_distribution = {"min": 0, "median": 0, "p90": 0, "max": 0, "total_scored": 0}
+
+        scorer_used = all_scores[0].scorer_used if all_scores else "heuristic"
         emit({"type": "discover_step", "step": "rank", "status": "complete",
               "count": len(top),
-              "label": f"{len(top)} papers passed threshold of {pass_threshold} (of {len(all_scores)} scored)"})
+              "passed_count": len(passed),
+              "label": f"{len(passed)} of {len(all_scores)} papers passed threshold {pass_threshold} — showing top {len(top)}",
+              "score_distribution": score_distribution,
+              "scorer_used": scorer_used})
 
-        # Build output cards
+        # Build output cards — include all top_k, each tagged with passes_threshold
         papers_out = []
         for score in top:
             paper = get_paper(score.paper_id)
@@ -310,9 +333,11 @@ def _discover_worker(
                 "title": score.title,
                 "score": round(score.total_score, 3),
                 "confidence": round(score.confidence, 3),
+                "passes_threshold": score.total_score >= pass_threshold,
                 "features": score.features.model_dump(),
                 "top_signals": score.top_signals[:3],
                 "caveats": score.caveats[:2],
+                "scorer_used": score.scorer_used,
                 "year": paper.year,
                 "venue": paper.venue,
                 "url": paper.url,
@@ -328,7 +353,11 @@ def _discover_worker(
         emit({"type": "discover_complete",
               "papers": papers_out,
               "total_ingested": len(paper_ids),
-              "passed": len(passed),
+              "passed_count": len(passed),
+              "total_shown": len(top),
+              "pass_threshold": pass_threshold,
+              "score_distribution": score_distribution,
+              "scorer_used": scorer_used,
               "run_id": run_id})
 
     except Exception:
@@ -432,9 +461,9 @@ async def get_run_outputs(run_id: str) -> dict:
 class DiscoverRequest(BaseModel):
     query: str
     limit: int = 20
-    pass_threshold: float = 0.55
+    pass_threshold: float = settings.paper_pass_threshold
     recent_years: Optional[int] = None
-    top_k: int = 10
+    top_k: int = settings.default_top_k
     vc_profile: str = ""
 
 
@@ -479,6 +508,18 @@ async def get_paper_for_analysis(paper_id: str) -> dict:
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found in local DB.")
     return _paper_to_agent_dict(paper)
+
+
+# ── Defaults ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/defaults")
+async def get_defaults() -> dict:
+    """Return default form values so the GUI has a single source of truth."""
+    return {
+        "pass_threshold": settings.paper_pass_threshold,
+        "top_k": settings.default_top_k,
+        "recent_years": settings.default_recent_years,
+    }
 
 
 # ── Sample ────────────────────────────────────────────────────────────────────

@@ -82,6 +82,44 @@ Scoring rubric checks:
 8) Penalize major dependency/regulatory/manufacturing bottlenecks.
 """.strip()
 
+_OLLAMA_SCREENING_PROMPT = """
+You are a venture capital R&D analyst doing first-pass triage on a research paper.
+Your job is to decide if this paper is worth deeper investigation — NOT to make
+investment decisions. Score the paper across 7 dimensions on a 0.0 to 1.0 scale.
+
+Be calibrated, not strict. A paper does not need to claim "novel" to be novel —
+judge the substance. Penalize only genuine red flags: position papers without
+implementation, vague speculation, no empirical results.
+
+Return ONLY valid JSON with no prose and no markdown fences:
+{
+  "novelty": 0.0,
+  "investor_value": 0.0,
+  "buildability": 0.0,
+  "defensibility": 0.0,
+  "evidence_strength": 0.0,
+  "execution_risk": 0.0,
+  "conceptual_penalty": 0.0,
+  "top_signals": ["signal1", "signal2", "signal3"],
+  "caveats": ["caveat1", "caveat2", "caveat3"]
+}
+
+Calibration anchors:
+- AlphaFold-style breakthrough with code and benchmarks: novelty=0.9, buildability=0.7, evidence_strength=0.95
+- Solid incremental ML paper with SOTA on one benchmark: novelty=0.5, evidence_strength=0.7
+- Position or vision paper with no implementation: novelty=0.3, conceptual_penalty=0.7
+- Workshop paper with toy experiment: novelty=0.3, evidence_strength=0.3
+
+Scoring guidance:
+- novelty: Is this a genuinely new method or insight, or incremental iteration?
+- investor_value: Commercial relevance and market potential.
+- buildability: Can this be built or replicated with current tools in 12-24 months?
+- defensibility: Data moat, IP, know-how, or scale barriers.
+- evidence_strength: Benchmarks, experiments, ablations, and empirical results.
+- execution_risk: Higher = harder to productize (regulatory, hardware, scaling hurdles).
+- conceptual_penalty: Higher ONLY if vague, speculative, or lacking method detail.
+""".strip()
+
 _SCORE_WEIGHTS = {
     "novelty": 0.25,
     "investor_value": 0.23,
@@ -182,26 +220,94 @@ def _evaluate_with_llm(paper: Paper, vc_profile: str = "") -> Optional[dict]:
         return None
 
 
+def _evaluate_with_ollama(paper: Paper, vc_profile: str = "") -> Optional[dict]:
+    """Score paper using llama3.1:8b via local Ollama. Returns None on any failure."""
+    try:
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from tools.llm import call_llm
+
+        profile_ctx = _profile_context(vc_profile)
+        user_prompt = (
+            f"{profile_ctx}\n\n"
+            f"{_paper_evidence_text(paper)}"
+        )
+        raw_text = call_llm(
+            settings.scorer_model,
+            _OLLAMA_SCREENING_PROMPT,
+            user_prompt,
+            temperature=0.1,
+        )
+        parsed = _extract_json_object(raw_text)
+        return parsed if parsed else None
+    except Exception as exc:
+        logger.warning("Ollama screening failed for %s: %s", paper.paper_id, exc)
+        return None
+
+
 def _evaluate_with_fallback_heuristics(paper: Paper, vc_profile: str = "") -> dict:
+    """Keyword + metadata heuristic scorer. Used only when Ollama/OpenAI is unavailable."""
     text = f"{paper.title} {paper.abstract or ''} {paper.ocr_text or ''}".lower()
     profile_text = vc_profile.lower()
 
-    novelty_terms = ["novel", "first", "new paradigm", "breakthrough", "unprecedented"]
-    build_terms = ["prototype", "implementation", "system", "hardware", "deployed", "fabricated"]
-    evidence_terms = ["experiment", "benchmark", "ablation", "trial", "evaluation", "results"]
-    conceptual_terms = ["framework", "vision", "perspective", "future work", "hypothesis"]
-    moat_terms = ["patent", "proprietary", "manufacturing process", "trade-off", "know-how"]
+    # Broad novelty signals: ML, biotech, physical science, and software papers all covered
+    novelty_terms = [
+        "novel", "first", "new paradigm", "breakthrough", "unprecedented",
+        "state-of-the-art", "outperform", "surpass", "we propose", "we present",
+        "we introduce", "new approach", "new method", "significant improvement",
+        "advance", "superior", "exceeds", "improves upon",
+    ]
+    # Includes software/ML artefacts alongside hardware
+    build_terms = [
+        "prototype", "implementation", "system", "hardware", "deployed", "fabricated",
+        "model", "algorithm", "architecture", "trained", "open-source", "github",
+        "software", "pipeline", "tool", "library", "repository", "code available",
+        "reproducible", "demonstrated", "validated",
+    ]
+    evidence_terms = [
+        "experiment", "benchmark", "ablation", "trial", "evaluation", "results",
+        "dataset", "accuracy", "performance", "comparison", "quantitative",
+        "empirical", "measured", "table", "figure", "statistical",
+    ]
+    # Only genuinely speculative/hand-wavy phrases; "framework" is removed
+    conceptual_terms = [
+        "vision paper", "position paper", "future work", "hypothesis",
+        "theoretical framework", "speculative", "we envision", "we believe that",
+        "could potentially", "might enable", "it is possible that",
+    ]
+    moat_terms = [
+        "patent", "proprietary", "manufacturing process", "trade-off", "know-how",
+        "competitive advantage", "barrier to entry", "exclusive", "licensed",
+        "unique dataset", "data moat",
+    ]
 
-    def _ratio(terms: list[str], denom: int = 4) -> float:
-        return min(1.0, sum(1 for t in terms if t in text) / denom)
+    # Denominator = ~30% of list length so matching a few terms still gives a meaningful score
+    def _ratio(terms: list[str]) -> float:
+        matches = sum(1 for t in terms if t in text)
+        denom = max(2, len(terms) * 3 // 10)
+        return min(1.0, matches / denom)
 
     novelty = _ratio(novelty_terms)
     buildability = _ratio(build_terms)
     evidence_strength = _ratio(evidence_terms)
-    conceptual_penalty = _ratio(conceptual_terms, denom=3)
     defensibility = _ratio(moat_terms)
-    investor_value = max(0.0, min(1.0, 0.45 * novelty + 0.35 * buildability + 0.20 * defensibility))
-    execution_risk = max(0.0, min(1.0, 1.0 - (0.55 * buildability + 0.45 * evidence_strength)))
+
+    # Conceptual penalty only fires when multiple speculative phrases appear
+    raw_conceptual = _ratio(conceptual_terms)
+    conceptual_penalty = raw_conceptual if raw_conceptual >= 0.4 else 0.0
+
+    # Citation count as an evidence-independent signal of demonstrated value
+    import math
+    citation_signal = min(0.2, math.log1p(paper.citation_count or 0) / math.log1p(500))
+    oa_bonus = 0.05 if paper.is_open_access else 0.0
+
+    evidence_strength = min(1.0, evidence_strength + citation_signal * 0.3 + oa_bonus)
+    investor_value = max(0.0, min(1.0,
+        0.40 * novelty + 0.30 * buildability + 0.15 * defensibility + 0.15 * citation_signal
+    ))
+    # Cap execution_risk at 0.8 — heuristic can't reliably detect worst-case scenarios
+    execution_risk = max(0.0, min(0.8, 1.0 - (0.55 * buildability + 0.45 * evidence_strength)))
+
     profile_bonus = 0.0
     if profile_text:
         overlap_terms = [
@@ -220,10 +326,9 @@ def _evaluate_with_fallback_heuristics(paper: Paper, vc_profile: str = "") -> di
         "execution_risk": round(execution_risk, 4),
         "conceptual_penalty": round(conceptual_penalty, 4),
         "top_signals": [
-            "Fallback heuristic mode used (OPENAI_API_KEY missing/unavailable).",
-            "Scores estimate novelty/buildability/evidence from paper text only.",
-            "VC profile overlap applied heuristically." if profile_bonus else "No VC-profile-specific heuristic uplift applied.",
-            "Use LLM scoring for stricter diligence quality.",
+            "Fallback heuristic mode — Ollama/OpenAI unavailable.",
+            "Scores estimated from paper text, citation count, and open-access status.",
+            f"VC profile overlap applied (+{profile_bonus:.2f})." if profile_bonus else "No VC-profile-specific uplift applied.",
         ],
         "caveats": [
             "Heuristic scoring is less reliable than LLM rubric checks.",
@@ -235,8 +340,21 @@ def _evaluate_with_fallback_heuristics(paper: Paper, vc_profile: str = "") -> di
 
 def compute_investor_score(paper: Paper, vc_profile: str = "") -> InvestorScore:
     """Score paper by novelty, buildability, IP potential, and investor value."""
-    llm_eval = _evaluate_with_llm(paper, vc_profile=vc_profile)
-    raw = llm_eval or _evaluate_with_fallback_heuristics(paper, vc_profile=vc_profile)
+    scorer_used = "heuristic"
+
+    if settings.scorer_backend == "ollama":
+        llm_eval = _evaluate_with_ollama(paper, vc_profile=vc_profile)
+        if llm_eval:
+            scorer_used = "ollama"
+        raw = llm_eval or _evaluate_with_fallback_heuristics(paper, vc_profile=vc_profile)
+    elif settings.openai_api_key:
+        llm_eval = _evaluate_with_llm(paper, vc_profile=vc_profile)
+        if llm_eval:
+            scorer_used = "openai"
+        raw = llm_eval or _evaluate_with_fallback_heuristics(paper, vc_profile=vc_profile)
+    else:
+        llm_eval = None
+        raw = _evaluate_with_fallback_heuristics(paper, vc_profile=vc_profile)
 
     features = FeatureScores(
         novelty=round(_clamp_score(raw.get("novelty")), 4),
@@ -253,16 +371,17 @@ def compute_investor_score(paper: Paper, vc_profile: str = "") -> InvestorScore:
     conceptual_penalty = 0.18 * features.conceptual_penalty
     total = round(max(0.0, min(1.0, base_score - risk_penalty - conceptual_penalty)), 4)
 
+    used_llm = scorer_used in ("ollama", "openai")
     non_trivial = sum(
         1
         for k in ["novelty", "investor_value", "buildability", "defensibility", "evidence_strength"]
         if getattr(features, k) >= 0.4
     )
-    confidence = round(min(1.0, 0.25 + non_trivial * 0.15 + (0.15 if llm_eval else 0.0)), 4)
+    confidence = round(min(1.0, 0.25 + non_trivial * 0.15 + (0.15 if used_llm else 0.0)), 4)
 
     top_signals = raw.get("top_signals") or []
     caveats = raw.get("caveats") or []
-    if not llm_eval:
+    if not used_llm:
         caveats.append("LLM analysis unavailable; fallback heuristics were used.")
     if not paper.abstract:
         caveats.append("Abstract missing; buildability and novelty confidence is reduced.")
@@ -275,6 +394,7 @@ def compute_investor_score(paper: Paper, vc_profile: str = "") -> InvestorScore:
         features=features,
         top_signals=[str(s) for s in top_signals][:5],
         caveats=[str(c) for c in caveats][:6],
+        scorer_used=scorer_used,
     )
 
 
@@ -339,27 +459,58 @@ def rank_papers_for_investor(
     papers = get_papers_by_ids(candidate_ids)
 
     scored = []
+    scorer_used_counts: dict[str, int] = {}
     for paper in papers:
         inv_score = compute_investor_score(paper)
         update_investor_score(paper.paper_id, inv_score.total_score)
+        scorer_used_counts[inv_score.scorer_used] = scorer_used_counts.get(inv_score.scorer_used, 0) + 1
         scored.append({
             "paper_id": paper.paper_id,
             "title": paper.title,
             "year": paper.year,
             "novelty_value_score": inv_score.total_score,
+            "confidence": inv_score.confidence,
             "passes_threshold": inv_score.total_score >= pass_threshold,
+            "features": inv_score.features.model_dump(),
             "top_signals": inv_score.top_signals[:3],
+            "caveats": inv_score.caveats[:2],
+            "scorer_used": inv_score.scorer_used,
             "disclaimer": inv_score.disclaimer,
         })
 
     scored.sort(key=lambda x: x["novelty_value_score"], reverse=True)
-    accepted = [s for s in scored if s["passes_threshold"]]
+    passed_count = sum(1 for s in scored if s["passes_threshold"])
+
+    # Always return top_k results regardless of threshold — caller sees passes_threshold flag
+    top_papers = scored[:top_k]
+
+    # Score distribution stats for observability
+    all_scores = [s["novelty_value_score"] for s in scored]
+    if all_scores:
+        sorted_scores = sorted(all_scores)
+        n = len(sorted_scores)
+        median = sorted_scores[n // 2]
+        p90 = sorted_scores[int(n * 0.9)]
+        score_distribution = {
+            "min": round(sorted_scores[0], 4),
+            "median": round(median, 4),
+            "p90": round(p90, 4),
+            "max": round(sorted_scores[-1], 4),
+            "total_scored": n,
+        }
+    else:
+        score_distribution = {"min": 0, "median": 0, "p90": 0, "max": 0, "total_scored": 0}
+
+    primary_scorer = max(scorer_used_counts, key=scorer_used_counts.get) if scorer_used_counts else "heuristic"
+
     return json.dumps({
         "query": query,
         "top_k": top_k,
         "pass_threshold": pass_threshold,
-        "accepted_count": len(accepted),
-        "ranked_papers": accepted[:top_k],
+        "passed_count": passed_count,
+        "ranked_papers": top_papers,
+        "score_distribution": score_distribution,
+        "scorer_used": primary_scorer,
         "disclaimer": "⚠️  NOT INVESTMENT ADVICE.",
     }, indent=2)
 
