@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from shared.config import settings
-from shared.db import get_paper, get_run, get_triage_scores, init_db, list_runs
+from shared.db import get_paper, get_papers_by_ids, get_run, get_triage_scores, init_db, list_runs
 from shared.models import PipelineEvent, RunConfig, VCProfile
 from shared.vc_profile import TEMPLATES, load_profile, save_profile
 
