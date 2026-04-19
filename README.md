@@ -220,3 +220,11 @@ the Rankings page or from `GET /api/runs/{run_id}/export.pdf?top_k=10`.
 - **Run seems stuck** — the Terminal and the `/api/run/status` endpoint show
   the active stage. Bull/bear/judge takes the longest because three model
   families load sequentially.
+- **Ingestion / analysis is very slow** — `deepseek-r1:14b` is the bottleneck
+  on lower-spec machines. Override it in your `.env` with a lighter model:
+  ```
+  ANALYST_MODEL=qwen3:8b
+  JUDGE_MODEL=qwen3:8b
+  ```
+  See `.env.example` for all model overrides (`RESEARCHER_MODEL`, `ANALYST_MODEL`,
+  `JUDGE_MODEL`). After editing `.env`, restart the server — no rebuild needed.
