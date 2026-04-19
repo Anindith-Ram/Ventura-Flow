@@ -285,7 +285,7 @@ export function PaperDetail() {
                k === 'bear_critique.md' ? '🔴 Bear critique' :
                k === 'bull_brief.md' ? 'Bull research brief' : 'Bear research brief'}
             </summary>
-            <div style={{ marginTop: 12 }}>
+            <div className="prose" style={{ marginTop: 12 }}>
               <ReactMarkdown>{String(artefacts[k])}</ReactMarkdown>
             </div>
           </details>
