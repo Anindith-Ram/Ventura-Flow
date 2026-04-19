@@ -1,4 +1,6 @@
 export interface VCProfile {
+  user_name: string
+  firm_name: string
   thesis: string
   sectors: string[]
   stage: 'pre-seed' | 'seed' | 'series-a' | 'series-b' | 'growth' | 'any'

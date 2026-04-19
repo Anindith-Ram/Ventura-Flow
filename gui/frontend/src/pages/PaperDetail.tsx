@@ -1,6 +1,9 @@
+import { motion } from 'framer-motion'
+import { ChevronLeft, ExternalLink, FileText } from 'lucide-react'
 import { marked } from 'marked'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { api } from '../api'
 
 function Prose({ children }: { children: string }) {
   return (
@@ -10,7 +13,6 @@ function Prose({ children }: { children: string }) {
     />
   )
 }
-import { api } from '../api'
 
 type JudgeEval = {
   investability_score: number
@@ -53,38 +55,56 @@ type PitchDeck = {
 }
 
 const REC_COLORS: Record<string, string> = {
-  STRONG_FLAG: '#4ade80',
-  FLAG: '#5fa8ff',
-  WATCH_LIST: '#fbbf24',
-  PASS: '#f87171',
+  STRONG_FLAG: 'var(--seaweed)',
+  FLAG: 'var(--coral)',
+  WATCH_LIST: 'var(--sun)',
+  PASS: 'var(--berry)',
+}
+const REC_BG: Record<string, string> = {
+  STRONG_FLAG: 'var(--artichoke-bg)',
+  FLAG: 'var(--coral-bg)',
+  WATCH_LIST: '#fbf1d9',
+  PASS: '#f5dce1',
+}
+const SEVERITY_COLORS: Record<string, string> = {
+  HIGH: 'var(--berry)',
+  MEDIUM: 'var(--coral-dark)',
+  LOW: 'var(--seaweed)',
 }
 
-const SEVERITY_COLORS: Record<string, string> = {
-  HIGH: '#f87171',
-  MEDIUM: '#fbbf24',
-  LOW: '#4ade80',
+function scoreClass(v: number): 'high' | 'mid' | 'low' {
+  if (v >= 70) return 'high'
+  if (v >= 45) return 'mid'
+  return 'low'
 }
 
 function ScoreDimension({ label, score, rationale }: { label: string; score: number; rationale: string }) {
-  const color = score >= 70 ? '#4ade80' : score >= 45 ? '#fbbf24' : '#f87171'
+  const cls = scoreClass(score)
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 12, color: '#8b93a4', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
-        <span style={{ fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>{score}/100</span>
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
+          {label}
+        </span>
+        <span className={`score-pill ${cls}`}>{score}/100</span>
       </div>
-      <div style={{ background: '#1a1f2b', borderRadius: 4, height: 6, marginBottom: 6 }}>
-        <div style={{ width: `${score}%`, background: color, height: '100%', borderRadius: 4, transition: 'width 0.4s' }} />
+      <div className="bar" style={{ marginBottom: 8 }}>
+        <motion.div
+          className={`bar-fill ${cls}`}
+          initial={{ width: 0 }}
+          animate={{ width: `${score}%` }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+        />
       </div>
-      <p style={{ margin: 0, fontSize: 12, color: '#c9d1d9', lineHeight: 1.5 }}>{rationale}</p>
+      <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-soft)', lineHeight: 1.55 }}>{rationale}</p>
     </div>
   )
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: 11, color: '#8b93a4', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{title}</div>
+    <div className="memo-section">
+      <h4>{title}</h4>
       {children}
     </div>
   )
@@ -106,58 +126,81 @@ export function PaperDetail() {
       .finally(() => setLoading(false))
   }, [runId, paperId])
 
-  if (loading) return <div>Loading…</div>
-  if (err) return <div style={{ color: '#f87171' }}>{err}</div>
+  if (loading) return <div className="sub">Loading…</div>
+  if (err) return <div style={{ color: 'var(--berry)' }}>{err}</div>
   if (!paper) return <div>Not found.</div>
 
   const judge: JudgeEval | null = artefacts['judge_evaluation.json'] ?? null
   const deck: PitchDeck | null = artefacts['pitch_deck.json'] ?? null
-  const hasMemo = !!(judge && deck)
 
   return (
     <div>
-      {/* ── Header ── */}
       <div className="header" style={{ alignItems: 'flex-start' }}>
         <div style={{ flex: 1, marginRight: 24 }}>
+          <Link to={`/rankings/${runId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 8 }}>
+            <ChevronLeft size={14} strokeWidth={2.5} /> Rankings
+          </Link>
           <h2 style={{ marginBottom: 6 }}>{paper.title}</h2>
           <div className="sub">
             {(paper.authors || []).map((a: any) => a.name).join(', ') || 'Unknown authors'} ·{' '}
             {paper.year ?? '—'} · {paper.venue || paper.source || ''}
           </div>
-          <div className="row" style={{ marginTop: 8 }}>
-            {paper.url && <a href={paper.url} target="_blank" rel="noreferrer">OpenAlex ↗</a>}
-            {paper.pdf_url && <a href={paper.pdf_url} target="_blank" rel="noreferrer">PDF ↗</a>}
+          <div className="row" style={{ marginTop: 12 }}>
+            {paper.url && (
+              <a href={paper.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <ExternalLink size={12} strokeWidth={2} /> OpenAlex
+              </a>
+            )}
+            {paper.pdf_url && (
+              <a href={paper.pdf_url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <FileText size={12} strokeWidth={2} /> PDF
+              </a>
+            )}
           </div>
         </div>
-        <Link to={`/rankings/${runId}`}>← Rankings</Link>
       </div>
 
-      {/* ── Judge scorecard ── */}
       {judge ? (
         <>
-          <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-              <div style={{
-                fontSize: 48, fontWeight: 800, lineHeight: 1,
-                color: REC_COLORS[judge.recommendation] ?? '#e6e9ef',
-                fontVariantNumeric: 'tabular-nums',
-              }}>
+          <motion.div
+            className="card"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 22 }}>
+              <motion.div
+                initial={{ scale: 0.7, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.1, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                style={{
+                  fontSize: 56, fontWeight: 800, lineHeight: 1,
+                  color: REC_COLORS[judge.recommendation] ?? 'var(--text)',
+                  fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '-0.03em',
+                }}
+              >
                 {judge.investability_score}
-              </div>
+              </motion.div>
               <div>
                 <div style={{
-                  display: 'inline-block', padding: '4px 12px', borderRadius: 999,
-                  background: REC_COLORS[judge.recommendation] + '22',
+                  display: 'inline-block', padding: '5px 14px', borderRadius: 999,
+                  background: REC_BG[judge.recommendation],
                   border: `1px solid ${REC_COLORS[judge.recommendation]}`,
                   color: REC_COLORS[judge.recommendation],
-                  fontWeight: 700, fontSize: 13, marginBottom: 6,
+                  fontWeight: 700, fontSize: 12, marginBottom: 8,
+                  letterSpacing: '0.04em',
                 }}>
                   {judge.recommendation.replace('_', ' ')}
                 </div>
-                <div style={{ color: '#e6e9ef', fontSize: 15 }}>{judge.one_line_verdict}</div>
+                <div style={{ color: 'var(--text)', fontSize: 16, fontWeight: 600, letterSpacing: '-0.005em' }}>
+                  {judge.one_line_verdict}
+                </div>
               </div>
             </div>
-            <p style={{ color: '#8b93a4', fontSize: 13, margin: '0 0 20px' }}>{judge.investability_rationale}</p>
+            <p style={{ color: 'var(--muted)', fontSize: 13.5, margin: '0 0 24px', lineHeight: 1.6 }}>
+              {judge.investability_rationale}
+            </p>
 
             <h3 style={{ marginBottom: 16 }}>Dimension scores</h3>
             <ScoreDimension label="Commercial viability" score={judge.commercial_viability} rationale={judge.commercial_viability_rationale} />
@@ -165,38 +208,47 @@ export function PaperDetail() {
             <ScoreDimension label="Timing & market" score={judge.timing_and_market} rationale={judge.timing_rationale} />
             <ScoreDimension label="Competitive moat" score={judge.competitive_moat} rationale={judge.moat_rationale} />
             <ScoreDimension label="Risk-adjusted conviction" score={judge.risk_adjusted_conviction} rationale={judge.risk_conviction_rationale} />
-          </div>
+          </motion.div>
 
           <div className="card">
             <h3>Bull vs Bear adjudication</h3>
             <div className="grid-2" style={{ gap: 20 }}>
               <div>
-                <div style={{ fontSize: 12, color: '#4ade80', textTransform: 'uppercase', marginBottom: 8 }}>Bull prevailed on</div>
+                <div style={{ fontSize: 11, color: 'var(--seaweed)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 10 }}>
+                  Bull prevailed on
+                </div>
                 {judge.bull_vs_bear_adjudication.bull_prevailed_on.length ? (
                   <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {judge.bull_vs_bear_adjudication.bull_prevailed_on.map((p, i) => <li key={i} style={{ fontSize: 13, marginBottom: 6 }}>{p}</li>)}
+                    {judge.bull_vs_bear_adjudication.bull_prevailed_on.map((p, i) =>
+                      <li key={i} style={{ fontSize: 13, marginBottom: 6 }}>{p}</li>)}
                   </ul>
                 ) : <span className="sub">—</span>}
               </div>
               <div>
-                <div style={{ fontSize: 12, color: '#f87171', textTransform: 'uppercase', marginBottom: 8 }}>Bear prevailed on</div>
+                <div style={{ fontSize: 11, color: 'var(--berry)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 10 }}>
+                  Bear prevailed on
+                </div>
                 {judge.bull_vs_bear_adjudication.bear_prevailed_on.length ? (
                   <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    {judge.bull_vs_bear_adjudication.bear_prevailed_on.map((p, i) => <li key={i} style={{ fontSize: 13, marginBottom: 6 }}>{p}</li>)}
+                    {judge.bull_vs_bear_adjudication.bear_prevailed_on.map((p, i) =>
+                      <li key={i} style={{ fontSize: 13, marginBottom: 6 }}>{p}</li>)}
                   </ul>
                 ) : <span className="sub">—</span>}
               </div>
             </div>
             {judge.bull_vs_bear_adjudication.unresolved_tensions.length > 0 && (
-              <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 12, color: '#fbbf24', textTransform: 'uppercase', marginBottom: 8 }}>Unresolved tensions</div>
+              <div style={{ marginTop: 18 }}>
+                <div style={{ fontSize: 11, color: 'var(--coral-dark)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 10 }}>
+                  Unresolved tensions
+                </div>
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  {judge.bull_vs_bear_adjudication.unresolved_tensions.map((t, i) => <li key={i} style={{ fontSize: 13, marginBottom: 6 }}>{t}</li>)}
+                  {judge.bull_vs_bear_adjudication.unresolved_tensions.map((t, i) =>
+                    <li key={i} style={{ fontSize: 13, marginBottom: 6 }}>{t}</li>)}
                 </ul>
               </div>
             )}
-            <div style={{ marginTop: 16, padding: '12px 14px', background: '#1a1f2b', borderRadius: 8, fontSize: 12, color: '#8b93a4' }}>
-              <strong style={{ color: '#e6e9ef' }}>Evidence quality: </strong>{judge.evidence_quality_assessment}
+            <div style={{ marginTop: 18, padding: '12px 14px', background: 'var(--panel-2)', border: '1px solid var(--line)', borderRadius: 8, fontSize: 12.5, color: 'var(--muted)' }}>
+              <strong style={{ color: 'var(--text)' }}>Evidence quality: </strong>{judge.evidence_quality_assessment}
             </div>
           </div>
         </>
@@ -206,16 +258,15 @@ export function PaperDetail() {
         </div>
       )}
 
-      {/* ── Pitch deck memo ── */}
       {deck && (
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 20 }}>
-            <h3 style={{ margin: 0 }}>{deck.memo_title}</h3>
+            <h3 style={{ margin: 0, fontSize: 17 }}>{deck.memo_title}</h3>
             <span className="sub">{deck.memo_date}</span>
           </div>
 
           <Section title="Executive summary">
-            <p style={{ margin: 0, lineHeight: 1.7 }}>{deck.executive_summary}</p>
+            <p style={{ margin: 0, lineHeight: 1.7, fontSize: 14 }}>{deck.executive_summary}</p>
           </Section>
 
           <div className="grid-2">
@@ -235,23 +286,25 @@ export function PaperDetail() {
 
           <div className="grid-2" style={{ marginTop: 4 }}>
             <Section title="Bull case">
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: '#4ade80' }}>{deck.bull_case_narrative}</p>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: 'var(--seaweed)' }}>{deck.bull_case_narrative}</p>
             </Section>
             <Section title="Bear case">
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: '#f87171' }}>{deck.bear_case_narrative}</p>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: 'var(--berry)' }}>{deck.bear_case_narrative}</p>
             </Section>
           </div>
 
           <Section title="Key risks">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {deck.key_risks_ranked.map((r, i) => (
-                <div key={i} style={{ background: '#1a1f2b', borderRadius: 8, padding: '10px 14px' }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: SEVERITY_COLORS[r.severity] ?? '#8b93a4' }}>{r.severity}</span>
+                <div key={i} style={{ background: 'var(--panel-2)', border: '1px solid var(--line)', borderRadius: 8, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: SEVERITY_COLORS[r.severity] ?? 'var(--muted)', letterSpacing: '0.06em' }}>
+                      {r.severity}
+                    </span>
                     <span style={{ fontSize: 13 }}>{r.risk}</span>
                   </div>
                   {r.mitigatable && r.mitigation_path && (
-                    <div style={{ fontSize: 12, color: '#8b93a4' }}>Mitigation: {r.mitigation_path}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Mitigation: {r.mitigation_path}</div>
                   )}
                 </div>
               ))}
@@ -275,36 +328,43 @@ export function PaperDetail() {
             <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7 }}>{deck.comparable_transactions}</p>
           </Section>
 
-          <div style={{
-            padding: '12px 16px', borderRadius: 8, marginTop: 8,
-            background: (REC_COLORS[deck.partner_meeting_recommendation?.split(' ')[0]] ?? '#5fa8ff') + '18',
-            border: `1px solid ${REC_COLORS[deck.partner_meeting_recommendation?.split(' ')[0]] ?? '#5fa8ff'}44`,
-          }}>
-            <strong>Partner recommendation: </strong>{deck.partner_meeting_recommendation}
-          </div>
+          {(() => {
+            const rec = deck.partner_meeting_recommendation?.split(' ')[0] ?? 'FLAG'
+            const fg = REC_COLORS[rec] ?? 'var(--coral)'
+            const bg = REC_BG[rec] ?? 'var(--coral-bg)'
+            return (
+              <div style={{
+                padding: '14px 18px', borderRadius: 10, marginTop: 10,
+                background: bg, border: `1px solid ${fg}`,
+              }}>
+                <strong style={{ color: fg }}>Partner recommendation: </strong>
+                <span style={{ color: 'var(--text)' }}>{deck.partner_meeting_recommendation}</span>
+              </div>
+            )
+          })()}
         </div>
       )}
 
-      {/* ── Researcher briefs / theses (collapsible prose) ── */}
       {(['bull_thesis.md', 'bear_critique.md', 'bull_brief.md', 'bear_brief.md'] as const).map((k) =>
         artefacts[k] ? (
           <details key={k} className="card" style={{ cursor: 'pointer' }}>
-            <summary style={{ fontWeight: 600, fontSize: 14 }}>
-              {k === 'bull_thesis.md' ? '🟢 Bull thesis' :
-               k === 'bear_critique.md' ? '🔴 Bear critique' :
+            <summary style={{ fontWeight: 700, fontSize: 14 }}>
+              {k === 'bull_thesis.md' ? 'Bull thesis' :
+               k === 'bear_critique.md' ? 'Bear critique' :
                k === 'bull_brief.md' ? 'Bull research brief' : 'Bear research brief'}
             </summary>
-            <div style={{ marginTop: 12 }}>
+            <div style={{ marginTop: 14 }}>
               <Prose>{String(artefacts[k])}</Prose>
             </div>
           </details>
         ) : null,
       )}
 
-      {/* ── Abstract ── */}
       <div className="card">
         <h3>Abstract</h3>
-        <p style={{ margin: 0, lineHeight: 1.7 }}>{paper.abstract || <em className="sub">no abstract</em>}</p>
+        <p style={{ margin: 0, lineHeight: 1.7 }}>
+          {paper.abstract || <em className="sub">no abstract</em>}
+        </p>
       </div>
     </div>
   )

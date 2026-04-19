@@ -79,6 +79,10 @@ class Paper(BaseModel):
 class VCProfile(BaseModel):
     """Global VC preference profile — drives query planning and triage."""
 
+    # Identity (shown on the welcome page)
+    user_name: str = ""
+    firm_name: str = ""
+
     # Thesis (freetext — Query Planner reasons about this)
     thesis: str = ""
     sectors: list[str] = Field(default_factory=list)

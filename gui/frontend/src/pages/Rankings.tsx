@@ -1,19 +1,25 @@
+import { motion } from 'framer-motion'
+import { ArrowDown, ChevronLeft, Download } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
-import { Terminal } from '../components/Terminal'
+import { PipelineStages } from '../components/PipelineStages'
 import { useEventStream } from '../store'
 import type { RunRow, TriageScore } from '../types'
 
 type SortKey = 'composite' | 'vc_fit' | 'novelty' | 'credibility'
+
+function scoreClass(v: number): 'high' | 'mid' | 'low' {
+  if (v >= 70) return 'high'
+  if (v >= 45) return 'mid'
+  return 'low'
+}
 
 export function Rankings() {
   const { runId: paramId } = useParams<{ runId: string }>()
   const { events, activeRunId } = useEventStream()
   const [fallbackRunId, setFallbackRunId] = useState<string | null>(null)
 
-  // When 'latest' is requested but there's no active run, use the most recent
-  // completed run from history.
   useEffect(() => {
     if (paramId !== 'latest' || activeRunId) return
     api.listRuns().then((runs) => {
@@ -22,9 +28,7 @@ export function Rankings() {
   }, [paramId, activeRunId])
 
   const runId =
-    paramId && paramId !== 'latest'
-      ? paramId
-      : activeRunId ?? fallbackRunId
+    paramId && paramId !== 'latest' ? paramId : activeRunId ?? fallbackRunId
 
   const [run, setRun] = useState<RunRow | null>(null)
   const [scores, setScores] = useState<TriageScore[]>([])
@@ -40,9 +44,7 @@ export function Rankings() {
       try {
         const res = await api.getRun(runId)
         if (cancelled) return
-        setRun(res.run)
-        setScores(res.scores)
-        setErr(null)
+        setRun(res.run); setScores(res.scores); setErr(null)
       } catch (e: any) {
         if (!cancelled) setErr(e.message)
       } finally {
@@ -51,10 +53,7 @@ export function Rankings() {
     }
     load()
     const id = setInterval(load, 5000)
-    return () => {
-      cancelled = true
-      clearInterval(id)
-    }
+    return () => { cancelled = true; clearInterval(id) }
   }, [runId])
 
   const sorted = useMemo(
@@ -73,46 +72,51 @@ export function Rankings() {
       <div>
         <h2>Rankings</h2>
         <p className="sub">No runs yet. Start one from the home page.</p>
-        <Link to="/">← Home</Link>
+        <Link to="/"><ChevronLeft size={14} style={{ verticalAlign: 'middle' }} /> Home</Link>
       </div>
     )
   }
+
+  const runEvents = events.filter((e) => e.run_id === runId)
+  const isLive = runId === activeRunId
 
   return (
     <div>
       <div className="header">
         <div>
-          <h2>Rankings — {runId}</h2>
-          <div className="sub">
-            {run ? (
-              <>
-                {run.mode} · ingested {run.papers_ingested} · triaged{' '}
-                {run.papers_passed_triage} · deep {run.papers_deep_analyzed}
-              </>
-            ) : loading ? (
-              'loading…'
-            ) : err ? (
-              <span style={{ color: '#f87171' }}>{err}</span>
-            ) : (
-              'waiting for first results'
+          <h2>
+            Rankings
+            {isLive && <span className="badge coral" style={{ marginLeft: 10, fontSize: 11 }}>● LIVE</span>}
+          </h2>
+          <div className="sub" style={{ fontFamily: 'SF Mono, Menlo, monospace', fontSize: 12 }}>
+            {runId}
+            {run && (
+              <> · {run.mode} · {run.papers_ingested} ingested · {run.papers_passed_triage} triaged · {run.papers_deep_analyzed} deep</>
             )}
+            {!run && loading && ' · loading…'}
+            {err && <span style={{ color: 'var(--berry)' }}> · {err}</span>}
           </div>
         </div>
         {run && (
-          <a className="primary" href={api.exportPdfUrl(runId, 10)}>
-            Export memo pack (PDF)
+          <a className="primary" href={api.exportPdfUrl(runId, 10)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Download size={14} strokeWidth={2.5} />
+            Memo pack (PDF)
           </a>
         )}
       </div>
+
+      {isLive && (
+        <div className="card">
+          <PipelineStages events={runEvents} idle={false} />
+        </div>
+      )}
 
       {subfieldCounts.length > 0 && (
         <div className="card">
           <h3>Subfield mix</h3>
           <div className="row">
             {subfieldCounts.map(([k, n]) => (
-              <span key={k} className="chip">
-                {k} · {n}
-              </span>
+              <span key={k} className="chip">{k} · {n}</span>
             ))}
           </div>
         </div>
@@ -120,11 +124,13 @@ export function Rankings() {
 
       <div className="card">
         <h3>Papers</h3>
-        <p className="sub">Hover a rationale for the full agent reasoning. Click a row to drill in.</p>
+        <p className="sub" style={{ marginBottom: 12 }}>
+          Hover a rationale for the full agent reasoning. Click a row for deep-analysis memo.
+        </p>
         <table>
           <thead>
             <tr>
-              <th>#</th>
+              <th style={{ width: 32 }}>#</th>
               <th>Paper</th>
               <th>Subfield</th>
               {(['composite', 'vc_fit', 'novelty', 'credibility'] as SortKey[]).map((k) => (
@@ -132,50 +138,60 @@ export function Rankings() {
                   key={k}
                   className={sortKey === k ? 'active' : ''}
                   onClick={() => setSortKey(k)}
-                  style={{ cursor: 'pointer' }}
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
                 >
-                  {k} {sortKey === k ? '↓' : ''}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {k.replace('_', ' ')}
+                    {sortKey === k && <ArrowDown size={11} strokeWidth={2.5} />}
+                  </span>
                 </th>
               ))}
               <th>Rationale</th>
             </tr>
           </thead>
           <tbody>
-            {sorted.map((s, i) => (
-              <tr key={s.paper_id}>
-                <td>{i + 1}</td>
-                <td style={{ maxWidth: 340 }}>
-                  <Link to={`/runs/${runId}/paper/${encodeURIComponent(s.paper_id)}`}>
-                    {s.title || s.paper_id}
-                  </Link>
-                  {s.has_memo && (
-                    <span className="badge active" style={{ marginLeft: 6 }}>memo</span>
-                  )}
-                </td>
-                <td>{s.subfield || '—'}</td>
-                <td><strong>{s.composite.toFixed(1)}</strong></td>
-                <td>{s.vc_fit.toFixed(1)}</td>
-                <td>{s.novelty.toFixed(1)}</td>
-                <td>{s.credibility.toFixed(1)}</td>
-                <td className="rationale" title={s.rationale}>
-                  {s.rationale.length > 120 ? s.rationale.slice(0, 120) + '…' : s.rationale}
-                </td>
-              </tr>
-            ))}
+            {sorted.map((s, i) => {
+              const c = scoreClass(s.composite)
+              return (
+                <motion.tr
+                  key={s.paper_id}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(i, 10) * 0.025, duration: 0.25 }}
+                >
+                  <td style={{ color: 'var(--muted)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                    {i + 1}
+                  </td>
+                  <td style={{ maxWidth: 380 }}>
+                    <Link to={`/runs/${runId}/paper/${encodeURIComponent(s.paper_id)}`}>
+                      {s.title || s.paper_id}
+                    </Link>
+                    {s.has_memo && (
+                      <span className="badge active" style={{ marginLeft: 8 }}>memo</span>
+                    )}
+                  </td>
+                  <td className="sub">{s.subfield || '—'}</td>
+                  <td>
+                    <span className={`score-pill ${c}`}>{s.composite.toFixed(0)}</span>
+                  </td>
+                  <td>{s.vc_fit.toFixed(0)}</td>
+                  <td>{s.novelty.toFixed(0)}</td>
+                  <td>{s.credibility.toFixed(0)}</td>
+                  <td className="rationale" title={s.rationale}>
+                    {s.rationale.length > 110 ? s.rationale.slice(0, 110) + '…' : s.rationale}
+                  </td>
+                </motion.tr>
+              )
+            })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={8} className="sub" style={{ textAlign: 'center', padding: 20 }}>
+                <td colSpan={8} className="sub" style={{ textAlign: 'center', padding: 32 }}>
                   No triage scores yet.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </div>
-
-      <div className="card">
-        <h3>Live pipeline output</h3>
-        <Terminal events={events.filter((e) => !runId || e.run_id === runId)} />
       </div>
     </div>
   )

@@ -1,3 +1,4 @@
+import { Check } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '../api'
 import { useProfile } from '../store'
@@ -13,31 +14,29 @@ function ChipList({
   const [draft, setDraft] = useState('')
   function add() {
     const v = draft.trim()
-    if (!v) return
-    if (value.includes(v)) return
+    if (!v || value.includes(v)) return
     onChange([...value, v])
     setDraft('')
   }
   return (
     <div>
-      <div className="row" style={{ marginBottom: 6 }}>
-        {value.map((v) => (
-          <span key={v} className="chip">
-            {v}
-            <button onClick={() => onChange(value.filter((x) => x !== v))}>×</button>
-          </span>
-        ))}
-      </div>
+      {value.length > 0 && (
+        <div className="row" style={{ marginBottom: 10 }}>
+          {value.map((v) => (
+            <span key={v} className="chip">
+              {v}
+              <button onClick={() => onChange(value.filter((x) => x !== v))}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 6 }}>
         <input
           placeholder={placeholder}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              add()
-            }
+            if (e.key === 'Enter') { e.preventDefault(); add() }
           }}
         />
         <button onClick={add}>Add</button>
@@ -51,11 +50,9 @@ export function Preferences() {
   const [templates, setTemplates] = useState<Record<string, VCProfile>>({})
   const [saved, setSaved] = useState(false)
 
-  useEffect(() => {
-    api.getTemplates().then(setTemplates)
-  }, [])
+  useEffect(() => { api.getTemplates().then(setTemplates) }, [])
 
-  if (loading || !profile) return <div>Loading profile…</div>
+  if (loading || !profile) return <div className="sub">Loading profile…</div>
 
   function update<K extends keyof VCProfile>(key: K, v: VCProfile[K]) {
     setProfile({ ...profile!, [key]: v })
@@ -64,28 +61,53 @@ export function Preferences() {
   function applyTemplate(name: string) {
     const tpl = templates[name]
     if (!tpl) return
-    setProfile({ ...tpl, updated_at: profile!.updated_at })
+    setProfile({
+      ...tpl,
+      user_name: profile!.user_name,
+      firm_name: profile!.firm_name,
+      updated_at: profile!.updated_at,
+    })
   }
 
   async function handleSave() {
     await save(profile!)
     setSaved(true)
-    setTimeout(() => setSaved(false), 1500)
+    setTimeout(() => setSaved(false), 1800)
   }
 
   return (
     <div>
       <div className="header">
         <div>
-          <h2>VC Preferences</h2>
+          <h2>Preferences</h2>
           <div className="sub">
             Shapes every query the planner emits and every triage score. Saved globally.
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="primary" onClick={handleSave}>
-            {saved ? '✓ Saved' : 'Save'}
-          </button>
+        <button className="primary" onClick={handleSave} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {saved ? <><Check size={14} strokeWidth={3} /> Saved</> : 'Save'}
+        </button>
+      </div>
+
+      <div className="card">
+        <h3>Identity</h3>
+        <div className="grid-2">
+          <div>
+            <label>Your name</label>
+            <input
+              value={profile.user_name}
+              onChange={(e) => update('user_name', e.target.value)}
+              placeholder="Ada Lovelace"
+            />
+          </div>
+          <div>
+            <label>Firm name</label>
+            <input
+              value={profile.firm_name}
+              onChange={(e) => update('firm_name', e.target.value)}
+              placeholder="Analytical Engines Capital"
+            />
+          </div>
         </div>
       </div>
 
@@ -93,23 +115,27 @@ export function Preferences() {
         <h3>Template</h3>
         <div className="row">
           {Object.keys(templates).map((name) => (
-            <button key={name} onClick={() => applyTemplate(name)}>
+            <button
+              key={name}
+              onClick={() => applyTemplate(name)}
+              className={profile.template === name ? 'primary' : ''}
+            >
               {name}
             </button>
           ))}
         </div>
-        <p className="sub" style={{ marginTop: 8 }}>
+        <p className="sub" style={{ marginTop: 10 }}>
           Templates fill the form with a reasonable starting thesis — fully editable after.
         </p>
       </div>
 
       <div className="card">
-        <h3>Thesis (freetext)</h3>
+        <h3>Thesis</h3>
         <textarea
           value={profile.thesis}
           onChange={(e) => update('thesis', e.target.value)}
           placeholder="Describe what your firm invests in, how you think about edge, and what would make a research paper signal for you. The Query Planner reasons about this directly."
-          style={{ minHeight: 140 }}
+          style={{ minHeight: 150 }}
         />
       </div>
 
@@ -122,10 +148,7 @@ export function Preferences() {
             placeholder="e.g. carbon capture"
           />
           <label>Stage</label>
-          <select
-            value={profile.stage}
-            onChange={(e) => update('stage', e.target.value as any)}
-          >
+          <select value={profile.stage} onChange={(e) => update('stage', e.target.value as any)}>
             <option value="pre-seed">Pre-seed</option>
             <option value="seed">Seed</option>
             <option value="series-a">Series A</option>
@@ -156,11 +179,7 @@ export function Preferences() {
         <div className="grid-2">
           <div>
             <label>From year</label>
-            <input
-              type="number"
-              value={profile.year_from}
-              onChange={(e) => update('year_from', +e.target.value)}
-            />
+            <input type="number" value={profile.year_from} onChange={(e) => update('year_from', +e.target.value)} />
           </div>
           <div>
             <label>To year (blank = present)</label>
@@ -168,9 +187,7 @@ export function Preferences() {
               type="number"
               value={profile.year_to ?? ''}
               placeholder="present"
-              onChange={(e) =>
-                update('year_to', e.target.value ? +e.target.value : null)
-              }
+              onChange={(e) => update('year_to', e.target.value ? +e.target.value : null)}
             />
           </div>
         </div>
