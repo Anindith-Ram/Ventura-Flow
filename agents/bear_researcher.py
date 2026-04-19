@@ -25,14 +25,19 @@ def _parse_queries(raw_output: str) -> list[str]:
     m = re.search(r"```json\s*(\{.*?\})\s*```", raw_output, re.DOTALL)
     if not m:
         m = re.search(r"(\{[^{}]*\"queries\"[^{}]*\})", raw_output, re.DOTALL)
-    if not m:
-        raise ValueError(f"Could not locate queries JSON in output:\n{raw_output[:500]}")
+    if m:
+        data = json.loads(m.group(1))
+        queries = data.get("queries", [])
+        if isinstance(queries, list) and queries:
+            return [str(q).strip() for q in queries if str(q).strip()]
 
-    data = json.loads(m.group(1))
-    queries = data.get("queries", [])
-    if not isinstance(queries, list) or not queries:
-        raise ValueError(f"Invalid queries field: {data}")
-    return [str(q).strip() for q in queries if str(q).strip()]
+    m = re.search(r"(\[\s*\".*?\"\s*\])", raw_output, re.DOTALL)
+    if m:
+        queries = json.loads(m.group(1))
+        if isinstance(queries, list) and queries:
+            return [str(q).strip() for q in queries if str(q).strip()]
+
+    raise ValueError(f"Could not locate queries JSON in output:\n{raw_output[:500]}")
 
 
 def generate_queries(paper: dict, logger=None) -> list[str]:

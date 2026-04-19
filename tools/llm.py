@@ -1,8 +1,17 @@
 import json
 import os
+import re
 import urllib.request
 
 _OLLAMA_URL = "http://localhost:11434/api/chat"
+
+# qwen3 and deepseek-r1 emit <think>...</think> reasoning blocks before their
+# actual response. Strip them so downstream parsers see clean output.
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+
+def _strip_thinking(text: str) -> str:
+    return _THINK_RE.sub("", text).strip()
 
 
 def call_llm(model: str, system: str, user: str, temperature: float = 0.7) -> str:
@@ -27,4 +36,5 @@ def call_llm(model: str, system: str, user: str, temperature: float = 0.7) -> st
         headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(req, timeout=600) as resp:
-        return json.loads(resp.read())["message"]["content"]
+        raw = json.loads(resp.read())["message"]["content"]
+    return _strip_thinking(raw)

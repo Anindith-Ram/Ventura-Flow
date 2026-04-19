@@ -129,29 +129,43 @@ class PipelineRunner:
                 run_id, "ingest",
                 f"Dropped {len(deduped) - len(with_abstract)} papers without abstracts"
             )
-        upsert_papers(with_abstract)
+
+        # Filter to open-access papers only (pdf_url present) so deep analysis
+        # always has full text. Papers without a PDF are dropped here.
+        with_pdf = [p for p in with_abstract if p.pdf_url]
+        no_pdf_count = len(with_abstract) - len(with_pdf)
+        if no_pdf_count:
+            await self._emit(
+                run_id, "ingest",
+                f"Dropped {no_pdf_count} papers with no open-access PDF "
+                f"({len(with_pdf)} remain for triage)",
+                level="warn",
+            )
+        else:
+            await self._emit(run_id, "ingest", f"All {len(with_pdf)} papers have open-access PDFs")
+
+        upsert_papers(with_pdf)
         await self._emit(
-            run_id, "ingest", f"Stored {len(with_abstract)} papers in DB",
-            "stage_end", papers_ingested=len(with_abstract),
+            run_id, "ingest", f"Stored {len(with_pdf)} papers in DB",
+            "stage_end", papers_ingested=len(with_pdf),
         )
 
-        if not with_abstract:
+        if not with_pdf:
             summary = RunSummary(
                 run_id=run_id, started_at=started, finished_at=datetime.utcnow(),
                 mode=config.mode, queries_planned=len(queries),
                 papers_ingested=0, artifacts_dir=str(artifacts_dir),
             )
             save_run(summary, json.dumps(profile.model_dump(mode="json"), default=str))
-            await self._emit(run_id, "run", "No papers ingested — run complete", "warn")
+            await self._emit(run_id, "run", "No open-access papers found — run complete", "warn")
             return summary
 
         # ── 3. Dedup (semantic) ─────────────────────────────────────────────
         await self._emit(run_id, "dedup", "Removing near-duplicates...", "stage_start")
-        # Sort by citation_count so the more-cited variant wins if two are near-identical
-        with_abstract.sort(key=lambda p: p.citation_count, reverse=True)
-        unique = await asyncio.to_thread(dedupe_papers, with_abstract)
+        with_pdf.sort(key=lambda p: p.citation_count, reverse=True)
+        unique = await asyncio.to_thread(dedupe_papers, with_pdf)
         await self._emit(
-            run_id, "dedup", f"{len(unique)} unique papers (dropped {len(with_abstract)-len(unique)})",
+            run_id, "dedup", f"{len(unique)} unique papers (dropped {len(with_pdf)-len(unique)})",
             "stage_end",
         )
 
@@ -206,9 +220,10 @@ class PipelineRunner:
                     data={"paper_id": p.paper_id, "chars": len(text)},
                 )
             else:
+                reason = "no open-access PDF in OpenAlex" if not p.pdf_url else "PDF download/parse failed"
                 await self._emit(
                     run_id, "deep_ingest",
-                    f"– {p.title[:60]} (no PDF / extraction failed, will use abstract)",
+                    f"– {p.title[:60]} ({reason} — analysis will use abstract only)",
                     "warn", data={"paper_id": p.paper_id},
                 )
         await self._emit(run_id, "deep_ingest", "Deep ingest complete", "stage_end")
@@ -245,7 +260,7 @@ class PipelineRunner:
             finished_at=datetime.utcnow(),
             mode=config.mode,
             queries_planned=len(queries),
-            papers_ingested=len(with_abstract),
+            papers_ingested=len(with_pdf),
             papers_passed_triage=len(passed),
             papers_deep_analyzed=len(top_paper_results),
             top_paper_ids=[s.paper_id for s in passed],

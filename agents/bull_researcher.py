@@ -23,17 +23,25 @@ MODEL = "qwen3:8b"
 
 def _parse_queries(raw_output: str) -> list[str]:
     """Extract the JSON query list from the model's output. Robust to stray text."""
+    # 1. Preferred: ```json { "queries": [...] } ```
     m = re.search(r"```json\s*(\{.*?\})\s*```", raw_output, re.DOTALL)
     if not m:
+        # 2. Bare JSON object anywhere in the output
         m = re.search(r"(\{[^{}]*\"queries\"[^{}]*\})", raw_output, re.DOTALL)
-    if not m:
-        raise ValueError(f"Could not locate queries JSON in output:\n{raw_output[:500]}")
+    if m:
+        data = json.loads(m.group(1))
+        queries = data.get("queries", [])
+        if isinstance(queries, list) and queries:
+            return [str(q).strip() for q in queries if str(q).strip()]
 
-    data = json.loads(m.group(1))
-    queries = data.get("queries", [])
-    if not isinstance(queries, list) or not queries:
-        raise ValueError(f"Invalid queries field: {data}")
-    return [str(q).strip() for q in queries if str(q).strip()]
+    # 3. JSON array of strings as fallback (model skipped the wrapper object)
+    m = re.search(r"(\[\s*\".*?\"\s*\])", raw_output, re.DOTALL)
+    if m:
+        queries = json.loads(m.group(1))
+        if isinstance(queries, list) and queries:
+            return [str(q).strip() for q in queries if str(q).strip()]
+
+    raise ValueError(f"Could not locate queries JSON in output:\n{raw_output[:500]}")
 
 
 def generate_queries(paper: dict, logger=None) -> list[str]:
