@@ -63,8 +63,7 @@ All agents run on **Ollama** with local Q4 quantized models:
 | Agent | Model |
 |-------|-------|
 | Planner / Triage / Researchers | `qwen3:8b` |
-| Analysts | `deepseek-r1:14b` |
-| Judge | `llama3.1:8b` |
+| Analysts and Judge | `deepseek-r1:14b` |
 
 ---
 
@@ -107,7 +106,6 @@ uv sync
 # 2. Pull Ollama models (one-time, ~15 GB total)
 ollama pull qwen3:8b
 ollama pull deepseek-r1:14b
-ollama pull llama3.1:8b
 
 # 3. Build the React frontend (one-time, or after any frontend change)
 cd gui/frontend
