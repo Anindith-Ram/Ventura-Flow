@@ -7,17 +7,17 @@ puts us in the polite pool for higher rate limits.
 from __future__ import annotations
 
 import logging
-import time
 from typing import Optional
 
 import httpx
 from tenacity import (
+    RetryCallState,
     before_sleep_log,
     retry,
     retry_if_exception,
     stop_after_attempt,
-    wait_exponential,
 )
+from tenacity.wait import wait_base
 
 from shared.config import settings
 from shared.models import Author, Paper
@@ -33,21 +33,37 @@ def _should_retry(exc: BaseException) -> bool:
     return isinstance(exc, (httpx.TimeoutException, httpx.ConnectError))
 
 
+class _RespectRetryAfter(wait_base):
+    """Tenacity wait strategy that honours the Retry-After response header.
+
+    Falls back to exponential backoff (1 → 2 → 4 → … capped at 60s) when the
+    header is absent or the exception carries no response.
+    """
+
+    def __call__(self, rs: RetryCallState) -> float:
+        exc = rs.outcome.exception()
+        if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 429:
+            header = exc.response.headers.get("Retry-After")
+            if header:
+                try:
+                    return float(header)
+                except ValueError:
+                    pass
+        # Exponential fallback: 1, 2, 4, 8, … capped at 60
+        return min(2 ** (rs.attempt_number - 1), 60)
+
+
 @retry(
-    wait=wait_exponential(multiplier=1, min=1, max=60),
+    wait=_RespectRetryAfter(),
     stop=stop_after_attempt(5),
     retry=retry_if_exception(_should_retry),
     before_sleep=before_sleep_log(logger, logging.WARNING),
 )
-def _get(url: str, params: dict) -> httpx.Response:
-    with httpx.Client(timeout=30) as client:
-        resp = client.get(url, params=params)
-        if resp.status_code == 429:
-            retry_after = int(resp.headers.get("Retry-After", "30"))
-            logger.warning("Rate-limited; sleeping %ds", retry_after)
-            time.sleep(retry_after)
-        resp.raise_for_status()
-        return resp
+def _get(url: str, params: dict, client: httpx.Client) -> httpx.Response:
+    """Execute a single GET. Client is passed in so callers can reuse connections."""
+    resp = client.get(url, params=params)
+    resp.raise_for_status()
+    return resp
 
 
 def _reconstruct_abstract(inv_index: Optional[dict]) -> Optional[str]:
@@ -152,7 +168,10 @@ class OpenAlexClient:
                 ),
             }
         )
-        resp = _get(f"{_BASE}/works", params)
+        # Each search gets its own short-lived client; parallelism is handled
+        # at the asyncio layer (gather), not here.
+        with httpx.Client(timeout=30) as client:
+            resp = _get(f"{_BASE}/works", params, client)
         results = resp.json().get("results") or []
         papers: list[Paper] = []
         for raw in results:
@@ -164,15 +183,15 @@ class OpenAlexClient:
 
     # ── Author enrichment ───────────────────────────────────────────────────
     def enrich_authors(self, papers: list[Paper]) -> None:
-        """Populate h_index, works_count, cited_by_count for each author by id.
+        """Populate h_index, works_count, cited_by_count for each unique author.
 
-        Mutates the papers list in place. Batched via OpenAlex filter.
+        Batches 50 IDs per request and reuses a single persistent HTTP connection
+        across all batches to avoid repeated TLS handshakes.
         """
         author_ids: list[str] = []
         for p in papers:
             for a in p.authors:
                 if a.author_id:
-                    # OpenAlex author IDs look like "https://openalex.org/A1234..."; strip
                     aid = a.author_id.split("/")[-1]
                     author_ids.append(aid)
         if not author_ids:
@@ -181,29 +200,30 @@ class OpenAlexClient:
         author_ids = list(dict.fromkeys(author_ids))  # dedupe, preserve order
         metrics: dict[str, dict] = {}
 
-        # OpenAlex `filter=ids.openalex:A1|A2|...` supports batching.
         batch_size = 50
-        for i in range(0, len(author_ids), batch_size):
-            batch = author_ids[i : i + batch_size]
-            params = self._params(
-                {
-                    "filter": f"ids.openalex:{'|'.join(batch)}",
-                    "per-page": batch_size,
-                    "select": "id,summary_stats,works_count,cited_by_count",
-                }
-            )
-            try:
-                resp = _get(f"{_BASE}/authors", params)
-                for a in resp.json().get("results") or []:
-                    aid = a["id"].split("/")[-1]
-                    stats = a.get("summary_stats") or {}
-                    metrics[aid] = {
-                        "h_index": stats.get("h_index"),
-                        "works_count": a.get("works_count"),
-                        "cited_by_count": a.get("cited_by_count"),
+        # Single persistent client for all batches — one TLS handshake total.
+        with httpx.Client(timeout=30) as client:
+            for i in range(0, len(author_ids), batch_size):
+                batch = author_ids[i: i + batch_size]
+                params = self._params(
+                    {
+                        "filter": f"ids.openalex:{'|'.join(batch)}",
+                        "per-page": batch_size,
+                        "select": "id,summary_stats,works_count,cited_by_count",
                     }
-            except Exception as exc:
-                logger.warning("Author enrichment batch failed: %s", exc)
+                )
+                try:
+                    resp = _get(f"{_BASE}/authors", params, client)
+                    for a in resp.json().get("results") or []:
+                        aid = a["id"].split("/")[-1]
+                        stats = a.get("summary_stats") or {}
+                        metrics[aid] = {
+                            "h_index": stats.get("h_index"),
+                            "works_count": a.get("works_count"),
+                            "cited_by_count": a.get("cited_by_count"),
+                        }
+                except Exception as exc:
+                    logger.warning("Author enrichment batch failed: %s", exc)
 
         for p in papers:
             for a in p.authors:
@@ -224,10 +244,11 @@ class OpenAlexClient:
             url = f"{_BASE}/works/{paper_id_or_doi[3:]}"
         else:
             url = f"{_BASE}/works/{paper_id_or_doi}"
-        try:
-            resp = _get(url, self._params({}))
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code == 404:
-                return None
-            raise
+        with httpx.Client(timeout=30) as client:
+            try:
+                resp = _get(url, self._params({}), client)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 404:
+                    return None
+                raise
         return _normalise_work(resp.json())

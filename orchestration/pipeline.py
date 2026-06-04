@@ -91,23 +91,33 @@ class PipelineRunner:
         )
 
         # ── 2. Metadata ingest ──────────────────────────────────────────────
-        await self._emit(run_id, "ingest", "Searching OpenAlex...", "stage_start")
-        all_papers: list[Paper] = []
-        for q in queries:
+        await self._emit(run_id, "ingest", f"Searching OpenAlex ({len(queries)} queries in parallel)...", "stage_start")
+
+        async def _search_one(q: dict) -> tuple[dict, list[Paper], str | None]:
             try:
                 batch = await asyncio.to_thread(
                     self.openalex.search, q["query"], config.papers_per_query,
                     profile.year_from, profile.year_to,
                 )
+                return q, batch, None
+            except Exception as exc:
+                return q, [], str(exc)
+
+        results = await asyncio.gather(*[_search_one(q) for q in queries])
+
+        all_papers: list[Paper] = []
+        for q, batch, err in results:
+            if err:
+                await self._emit(run_id, "ingest", f"Query failed: {err}", "warn")
+            else:
                 all_papers.extend(batch)
                 await self._emit(
-                    run_id, "ingest", f"[{q['angle']}] '{q['query']}' → {len(batch)} papers",
-                    data={"angle": q["angle"], "query": q["query"], "count": len(batch)},
+                    run_id, "ingest",
+                    f"[{q['angle']}] '{q['query']}' → {len(batch)} papers",
+                    angle=q["angle"], query=q["query"], count=len(batch),
                 )
-            except Exception as exc:
-                await self._emit(run_id, "ingest", f"Query failed: {exc}", "warn")
 
-        # Dedupe by paper_id first (same paper from multiple queries).
+        # Dedupe by paper_id (same paper returned by multiple queries).
         seen_ids: set[str] = set()
         deduped: list[Paper] = []
         for p in all_papers:
@@ -116,14 +126,7 @@ class PipelineRunner:
                 deduped.append(p)
         await self._emit(run_id, "ingest", f"Fetched {len(deduped)} unique papers")
 
-        # Author enrichment
-        try:
-            await asyncio.to_thread(self.openalex.enrich_authors, deduped)
-            await self._emit(run_id, "ingest", "Author metrics enriched (h-index, works count)")
-        except Exception as exc:
-            await self._emit(run_id, "ingest", f"Author enrichment skipped: {exc}", "warn")
-
-        # Filter papers without abstracts (triage needs them)
+        # Filter papers without abstracts (triage needs them).
         with_abstract = [p for p in deduped if p.abstract]
         if len(with_abstract) < len(deduped):
             await self._emit(
@@ -132,7 +135,7 @@ class PipelineRunner:
             )
 
         # Filter to open-access papers only (pdf_url present) so deep analysis
-        # always has full text. Papers without a PDF are dropped here.
+        # always has full text.
         with_pdf = [p for p in with_abstract if p.pdf_url]
         no_pdf_count = len(with_abstract) - len(with_pdf)
         if no_pdf_count:
@@ -145,7 +148,27 @@ class PipelineRunner:
         else:
             await self._emit(run_id, "ingest", f"All {len(with_pdf)} papers have open-access PDFs")
 
-        upsert_papers(with_pdf)
+        # Author enrichment — runs only on papers that survived both filters so
+        # we don't waste API calls on papers that will never reach triage.
+        unique_author_count = len({
+            a.author_id for p in with_pdf for a in p.authors if a.author_id
+        })
+        n_batches = (unique_author_count + 49) // 50
+        await self._emit(
+            run_id, "ingest",
+            f"Enriching {unique_author_count} unique authors ({n_batches} batch{'es' if n_batches != 1 else ''})…",
+        )
+        try:
+            await asyncio.to_thread(self.openalex.enrich_authors, with_pdf)
+            await self._emit(run_id, "ingest", f"Author metrics enriched for {len(with_pdf)} papers")
+        except Exception as exc:
+            await self._emit(run_id, "ingest", f"Author enrichment skipped: {exc}", "warn")
+
+        try:
+            upsert_papers(with_pdf)
+        except Exception as exc:
+            await self._emit(run_id, "ingest", f"DB upsert failed: {exc}", "error")
+            raise
         await self._emit(
             run_id, "ingest", f"Stored {len(with_pdf)} papers in DB",
             "stage_end", papers_ingested=len(with_pdf),
@@ -164,7 +187,11 @@ class PipelineRunner:
         # ── 3. Dedup (semantic) ─────────────────────────────────────────────
         await self._emit(run_id, "dedup", "Removing near-duplicates...", "stage_start")
         with_pdf.sort(key=lambda p: p.citation_count, reverse=True)
-        unique = await asyncio.to_thread(dedupe_papers, with_pdf)
+        try:
+            unique = await asyncio.to_thread(dedupe_papers, with_pdf)
+        except Exception as exc:
+            await self._emit(run_id, "dedup", f"Dedup failed: {exc}", "error")
+            raise
         await self._emit(
             run_id, "dedup", f"{len(unique)} unique papers (dropped {len(with_pdf)-len(unique)})",
             "stage_end",

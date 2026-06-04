@@ -89,9 +89,28 @@ def _conn() -> Generator[sqlite3.Connection, None, None]:
         conn.close()
 
 
+_MIGRATIONS = [
+    # Add columns introduced after initial schema. ALTER TABLE in SQLite has no
+    # IF NOT EXISTS, so we check the column list and skip if already present.
+    ("papers", "authors_json", "TEXT"),
+    ("papers", "full_text", "TEXT"),
+    ("papers", "fetched_at", "TEXT"),
+]
+
+
 def init_db() -> None:
     with _conn() as conn:
         conn.executescript(_SCHEMA)
+        # Forward-migrate columns that may be absent in older DBs.
+        existing: dict[str, set[str]] = {}
+        for table, col, col_type in _MIGRATIONS:
+            if table not in existing:
+                rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+                existing[table] = {r["name"] for r in rows}
+            if col not in existing[table]:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+                existing[table].add(col)
+                logger.info("Migrated: added %s.%s", table, col)
 
 
 # ── Papers ─────────────────────────────────────────────────────────────────
